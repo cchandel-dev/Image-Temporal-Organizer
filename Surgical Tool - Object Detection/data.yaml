@@ -1,0 +1,13 @@
+train: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/train/images
+val: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/valid/images
+test: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/valid/images
+
+nc: 1
+names: ['Surgical-Tool']
+
+roboflow:
+  workspace: dd-xsqu0
+  project: surgical-tool-detection-tsfnl
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/dd-xsqu0/surgical-tool-detection-tsfnl/dataset/1
