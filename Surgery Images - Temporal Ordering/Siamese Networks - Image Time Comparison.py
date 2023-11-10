@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras import layers, models, applications
 
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+
 # Load and preprocess images
 def load_and_preprocess_image(image_path):
     img = load_img(image_path, target_size=(299, 299))  # Adjust the target size based on your requirements
@@ -69,9 +71,8 @@ def create_siamese_model_v2(input_shape):
     output_2 = base_network(input_2)
 
     # Measure the similarity of the two outputs
-    distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
-
-    combined = tf.concat([output_1, output_2, distance], axis = 0)
+    #distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
+    combined = tf.concat([output_1, output_2], axis = 1)
     # Final output layer
     output_dense = layers.Dense(512, activation='relu')(combined)
     output_dense = layers.Dense(256, activation='relu')(output_dense)
@@ -82,22 +83,26 @@ def create_siamese_model_v2(input_shape):
 
 
 # Read the CSV file
-csv_file_path = 'C:\\Users\\cchan\\Laproscopic Surgery Work\\Surgery Images - Temporal Ordering\\data.json'
+csv_file_path = './data.json'
 data = pd.read_json(csv_file_path)
-
+train = data['train']
+test = data['test']
 #define data_generator inputs
-image_paths_1 = data['img_path_1'].tolist()
-image_paths_2 = data['img_path_2'].tolist()
-labels = data['labels'].tolist()
-#print(labels[5:])
-batch_size = 1
+train_image_paths_1 = train['img_path_1']
+train_image_paths_2 = train['img_path_2']
+train_labels = train['labels']
 
-train_image_paths_1 = image_paths_1[int(len(image_paths_1)*0.8):]
-train_image_paths_2 = image_paths_2[int(len(image_paths_2)*0.8):]
-train_labels = labels[int(len(labels)*0.8):]
-test_image_paths_1 = image_paths_1[:int(len(image_paths_1)*0.2)]
-test_image_paths_2 = image_paths_2[:int(len(image_paths_2)*0.2)]
-test_labels = labels[:int(len(labels)*0.2)]
+test_image_paths_1 = test['img_path_1']
+test_image_paths_2 = test['img_path_2']
+test_labels = test['labels']
+#print(labels[5:])
+batch_size = 8
+print(len(train_image_paths_1), len(test_image_paths_2))
+
+#train_image_paths_1 = image_paths_1[int(len(image_paths_1)*0.8):]
+#train_image_paths_2 = image_paths_2[int(len(image_paths_2)*0.8):]
+#train_labels = labels[int(len(labels)*0.8):]
+
 
 
 # Compile the model
@@ -107,7 +112,7 @@ siamese_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['ac
 
 # Train the model with your dataset
 # Assuming you have `train_images_1` and `train_images_2` as input image pairs and `labels` as their corresponding temporal order labels
-history = siamese_model.fit(data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size), steps_per_epoch=len(train_labels) // batch_size, epochs = 1, validation_data=data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size), validation_steps = len(test_labels) // batch_size)
+history = siamese_model.fit(data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size), steps_per_epoch=len(train_labels) // batch_size, epochs=30, validation_data=data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size), validation_steps = len(test_labels) // batch_size)
 
 # Visualize the training history
 plt.figure(figsize=(12, 6))
