@@ -71,8 +71,8 @@ def create_siamese_model_v2(input_shape):
     output_2 = base_network(input_2)
 
     # Measure the similarity of the two outputs
-    #distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
-    combined = tf.concat([output_1, output_2], axis = 1)
+    distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
+    combined = tf.concat([output_1, output_2, distance], axis = 1)
     # Final output layer
     output_dense = layers.Dense(512, activation='relu')(combined)
     output_dense = layers.Dense(256, activation='relu')(output_dense)
