@@ -59,7 +59,6 @@ class ImageAnnotator:
     def next_image(self):
         self.save_labels()
         if  self.current_index < len(self.image_list) - 1:
-            print(self.current_index, len(self.image_list))
             self.load_image()
         else:
             root.destroy()
@@ -73,8 +72,12 @@ class ImageAnnotator:
         self.current_rectangle = self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y)
 
     def finish_drawing_rectangle(self, event):
+        min_x = min(self.start_x, event.x)
+        max_x = max(self.start_x, event.x)
+        min_y = min(self.start_y, event.y)
+        max_y = max(self.start_y, event.y)
         self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y)
-        self.rectangles.append([self.start_x, self.start_y, event.x, event.y])
+        self.rectangles.append([min_x, min_y, max_x, max_y])
 
     def save_labels(self):
         # Save labels in YOLO format
@@ -83,6 +86,7 @@ class ImageAnnotator:
         with open(os.path.join(label_folder, self.image_list[self.current_index][:-4]+".txt"), 'w') as file:
             for rect_coords in self.rectangles:
                 x, y, w, h = rect_coords
+
                 # Normalize coordinates
                 x_center = (x + w / 2) / image_width
                 y_center = (y + h / 2) / image_height
