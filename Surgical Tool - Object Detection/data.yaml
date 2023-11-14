@@ -1,6 +1,6 @@
-train: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/train/images
+train: C:/Users/cchan/Laproscopic Surgery Work/Private Image Annotator/data/images
 val: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/valid/images
-test: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/valid/images
+test: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/test/images
 
 nc: 1
 names: ['Surgical-Tool']
