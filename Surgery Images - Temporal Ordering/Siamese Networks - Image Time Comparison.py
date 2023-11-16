@@ -72,7 +72,6 @@ def custom_fit(siamese_model, yolo_model, data_gen, num_epochs=10, steps_per_epo
             with tf.GradientTape() as tape:
                 outputs = siamese_model([input_1_images, input_2_images, num1, num2])
                 loss = loss_fn(labels, outputs)
-                
                 # Compute gradients and update weights
                 gradients = tape.gradient(loss, siamese_model.trainable_variables)
                 optimizer.apply_gradients(zip(gradients, siamese_model.trainable_variables))
@@ -123,30 +122,16 @@ train_labels = train['labels']
 test_image_paths_1 = test['img_path_1']
 test_image_paths_2 = test['img_path_2']
 test_labels = test['labels']
-#print(labels[5:])
 batch_size = 32
 print(len(train_image_paths_1), len(test_image_paths_2))
-
-#train_image_paths_1 = image_paths_1[int(len(image_paths_1)*0.8):]
-#train_image_paths_2 = image_paths_2[int(len(image_paths_2)*0.8):]
-#train_labels = labels[int(len(labels)*0.8):]
-
-
 
 # Compile the model
 input_shape = (299, 299, 3)  # Adjust the input shape based on your images
 
-yolo_model = YOLO("C:\\Users\\cchan\\computer-vision\\runs\\detect\\train5\\weights\\best.pt")
+yolo_model = YOLO("best.pt")
 data_gen = data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size)
 siamese_model = create_siamese_model(input_shape)
 custom_fit(siamese_model, yolo_model, data_gen)
-
-#siamese_model = create_siamese_model_with_yolo(input_shape, YOLO("C:\\Users\\cchan\\computer-vision\\runs\\detect\\train5\\weights\\best.pt"))
-#siamese_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-
-# Train the model with your dataset
-# Assuming you have `train_images_1` and `train_images_2` as input image pairs and `labels` as their corresponding temporal order labels
-#history = siamese_model.fit(data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size), steps_per_epoch=len(train_labels) // batch_size, epochs=30, validation_data=data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size), validation_steps = len(test_labels) // batch_size)
 
 # Visualize the training history
 plt.figure(figsize=(12, 6))
