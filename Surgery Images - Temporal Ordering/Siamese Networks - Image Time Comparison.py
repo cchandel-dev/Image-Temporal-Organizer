@@ -31,7 +31,7 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
                         'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
                     }, np.array(batch_labels)
 
-def custom_fit(siamese_model, yolo_model, data_gen, yolo_input_shape, num_epochs=10, steps_per_epoch=100):
+def custom_fit(siamese_model, yolo_model, data_gen, num_epochs=10, steps_per_epoch=100, batch_size = 32):
     optimizer = tf.keras.optimizers.Adam()
     loss_fn = tf.keras.losses.BinaryCrossentropy()
 
@@ -45,43 +45,51 @@ def custom_fit(siamese_model, yolo_model, data_gen, yolo_input_shape, num_epochs
             input_2_images, input_2_paths = inputs['input_2']
 
             # Load and preprocess images for YOLO input
-            yolo_input_1 = [preprocess_image(cv2.imread(image_path)) for image_path in input_1_paths]
-            yolo_input_2 = [preprocess_image(cv2.imread(image_path)) for image_path in input_2_paths]
+            yolo_input_1 = [load_img(image_path) for image_path in input_1_paths]
+            yolo_input_2 = [load_img(image_path) for image_path in input_2_paths]
             
             # Make YOLO predictions
-            yolo_output_1 = yolo_model.predict(np.array(yolo_input_1), save=True, imgsz=320, conf=0.35)
-            yolo_output_2 = yolo_model.predict(np.array(yolo_input_2), save=True, imgsz=320, conf=0.35)
+            yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35)
+            yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35)
+
+            print("the length of yolo output 1 is", len(yolo_output_1))
+            print("the length of yolo output 2 is", len(yolo_output_2))
+
+
+            print("the type of the yolo output is", type(yolo_output_1))
+            print("the type of the yolo output[0] is", type(yolo_output_1[0]))
+            print("the type of the yolo output[0].boxes is", type(yolo_output_1[0].boxes))
+            
+            num1 = []
+            num2 = []
+
+            # convert the yolo output to a length tensor
+            for idx in range(batch_size):
+                num1.append([len(yolo_output_1[idx].boxes.xywhn)])
+                num2.append([len(yolo_output_2[idx].boxes.xywhn)])
 
             # Train the siamese model
             with tf.GradientTape() as tape:
-                # Forward pass
-                outputs = siamese_model([input_1_images, input_2_images, yolo_output_1, yolo_output_2])
+                outputs = siamese_model([input_1_images, input_2_images, num1, num2])
                 loss = loss_fn(labels, outputs)
                 
-            # Compute gradients and update weights
-            gradients = tape.gradient(loss, siamese_model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, siamese_model.trainable_variables))
+                # Compute gradients and update weights
+                gradients = tape.gradient(loss, siamese_model.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, siamese_model.trainable_variables))
 
             # Display loss or any other relevant information
             if step % 10 == 0:
                 print(f"Step {step}/{steps_per_epoch}, Loss: {loss:.4f}")
 
-def create_siamese_model_with_yolo(input_shape, yolo_model)
+def create_siamese_model(input_shape):
     input_1 = tf.keras.Input(shape=input_shape)
     input_2 = tf.keras.Input(shape=input_shape)
+    input_num1 = tf.keras.Input(shape=(1))  # Shape can be adjusted based on your data
+    input_num2 = tf.keras.Input(shape=(1))  # Shape can be adjusted based on your data
 
     # Load a pre-trained image classification network as the shared subnetwork
     base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
     base_network.trainable = False  # Freeze the pre-trained weights
-
-
-
-    yolo_input_1 =
-    yolo_input_2 = 
-
-    # Obtain YOLO detections for both inputs
-    yolo_output_1 = yolo_model.predict(yolo_input_1)
-    yolo_output_2 = yolo_model.predict(yolo_input_2)
 
     output_1 = base_network(input_1)
     output_2 = base_network(input_2)
@@ -90,15 +98,15 @@ def create_siamese_model_with_yolo(input_shape, yolo_model)
     distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
 
     # Concatenate the outputs and YOLO detections
-    combined = tf.concat([output_1, output_2, distance, yolo_output_1, yolo_output_2], axis=1)
-
-    # Final output layer
+    combined = tf.concat([output_1, output_2, input_num1, input_num2], axis=1)
     output_dense = layers.Dense(512, activation='relu')(combined)
     output_dense = layers.Dense(256, activation='relu')(output_dense)
-    output = layers.Dense(1, activation='sigmoid')(output_dense)
+    outputs = layers.Dense(1, activation='sigmoid')(output_dense)
 
-    siamese_model = tf.keras.Model(inputs=[input_1, input_2], outputs=output)
+    siamese_model = tf.keras.Model(inputs=[input_1, input_2, input_num1, input_num2], outputs=outputs)
     return siamese_model
+
+
 
 
 
@@ -116,7 +124,7 @@ test_image_paths_1 = test['img_path_1']
 test_image_paths_2 = test['img_path_2']
 test_labels = test['labels']
 #print(labels[5:])
-batch_size = 8
+batch_size = 32
 print(len(train_image_paths_1), len(test_image_paths_2))
 
 #train_image_paths_1 = image_paths_1[int(len(image_paths_1)*0.8):]
@@ -127,12 +135,18 @@ print(len(train_image_paths_1), len(test_image_paths_2))
 
 # Compile the model
 input_shape = (299, 299, 3)  # Adjust the input shape based on your images
-siamese_model = create_siamese_model_with_yolo(input_shape, YOLO("C:\\Users\\cchan\\computer-vision\\runs\\detect\\train5\\weights\\best.pt"))
-siamese_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+yolo_model = YOLO("C:\\Users\\cchan\\computer-vision\\runs\\detect\\train5\\weights\\best.pt")
+data_gen = data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size)
+siamese_model = create_siamese_model(input_shape)
+custom_fit(siamese_model, yolo_model, data_gen)
+
+#siamese_model = create_siamese_model_with_yolo(input_shape, YOLO("C:\\Users\\cchan\\computer-vision\\runs\\detect\\train5\\weights\\best.pt"))
+#siamese_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 # Train the model with your dataset
 # Assuming you have `train_images_1` and `train_images_2` as input image pairs and `labels` as their corresponding temporal order labels
-history = siamese_model.fit(data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size), steps_per_epoch=len(train_labels) // batch_size, epochs=30, validation_data=data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size), validation_steps = len(test_labels) // batch_size)
+#history = siamese_model.fit(data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size), steps_per_epoch=len(train_labels) // batch_size, epochs=30, validation_data=data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size), validation_steps = len(test_labels) // batch_size)
 
 # Visualize the training history
 plt.figure(figsize=(12, 6))
