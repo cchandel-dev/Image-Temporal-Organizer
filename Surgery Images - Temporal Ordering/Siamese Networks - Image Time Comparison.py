@@ -31,8 +31,42 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
                         'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
                     }, np.array(batch_labels)
 
+def custom_fit(siamese_model, yolo_model, data_gen, yolo_input_shape, num_epochs=10, steps_per_epoch=100):
+    optimizer = tf.keras.optimizers.Adam()
+    loss_fn = tf.keras.losses.BinaryCrossentropy()
 
-def create_siamese_model_with_yolo(input_shape, yolo_model):
+    for epoch in range(num_epochs):
+        print(f"Epoch {epoch + 1}/{num_epochs}")
+        
+        for step in range(steps_per_epoch):
+            inputs, labels = next(data_gen)
+            
+            input_1_images, input_1_paths = inputs['input_1']
+            input_2_images, input_2_paths = inputs['input_2']
+
+            # Load and preprocess images for YOLO input
+            yolo_input_1 = [preprocess_image(cv2.imread(image_path)) for image_path in input_1_paths]
+            yolo_input_2 = [preprocess_image(cv2.imread(image_path)) for image_path in input_2_paths]
+            
+            # Make YOLO predictions
+            yolo_output_1 = yolo_model.predict(np.array(yolo_input_1), save=True, imgsz=320, conf=0.35)
+            yolo_output_2 = yolo_model.predict(np.array(yolo_input_2), save=True, imgsz=320, conf=0.35)
+
+            # Train the siamese model
+            with tf.GradientTape() as tape:
+                # Forward pass
+                outputs = siamese_model([input_1_images, input_2_images, yolo_output_1, yolo_output_2])
+                loss = loss_fn(labels, outputs)
+                
+            # Compute gradients and update weights
+            gradients = tape.gradient(loss, siamese_model.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, siamese_model.trainable_variables))
+
+            # Display loss or any other relevant information
+            if step % 10 == 0:
+                print(f"Step {step}/{steps_per_epoch}, Loss: {loss:.4f}")
+
+def create_siamese_model_with_yolo(input_shape, yolo_model)
     input_1 = tf.keras.Input(shape=input_shape)
     input_2 = tf.keras.Input(shape=input_shape)
 
@@ -40,8 +74,10 @@ def create_siamese_model_with_yolo(input_shape, yolo_model):
     base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
     base_network.trainable = False  # Freeze the pre-trained weights
 
-    yolo_input_1 = tf.keras.Input(shape=(...))  # Shape for YOLO predictions
-    yolo_input_2 = tf.keras.Input(shape=(...))  # Shape for YOLO predictions
+
+
+    yolo_input_1 =
+    yolo_input_2 = 
 
     # Obtain YOLO detections for both inputs
     yolo_output_1 = yolo_model.predict(yolo_input_1)
