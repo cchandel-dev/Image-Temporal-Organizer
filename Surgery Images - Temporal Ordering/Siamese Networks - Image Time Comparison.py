@@ -2,6 +2,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from ultralytics import YOLO
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras import layers, models, applications
 
@@ -25,54 +26,36 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
             batch_images_1 = [load_and_preprocess_image(image_path) for image_path in batch_paths_1]
             batch_images_2 = [load_and_preprocess_image(image_path) for image_path in batch_paths_2]
 
-            yield [np.array(batch_images_1), np.array(batch_images_2)], np.array(batch_labels)
+            yield {
+                        'input_1': [np.array(batch_images_1), np.array(batch_paths_1)],
+                        'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
+                    }, np.array(batch_labels)
 
 
-# Define the siamese network architecture
-def create_siamese_model_v1(input_shape):
-    input_1 = tf.keras.Input(shape=input_shape)
-    input_2 = tf.keras.Input(shape=input_shape)
-
-    # Shared subnetwork
-    shared_network = models.Sequential([
-        layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
-        layers.MaxPooling2D((2, 2)),
-        layers.Conv2D(64, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-        layers.Conv2D(128, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-        layers.Flatten(),
-        layers.Dense(128, activation='relu')
-    ])
-
-    output_1 = shared_network(input_1)
-    output_2 = shared_network(input_2)
-
-    # Measure the similarity of the two outputs
-    distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
-
-    # Final output layer
-    output = layers.Dense(1, activation='softmax')(distance)
-
-    siamese_model = tf.keras.Model(inputs=[input_1, input_2], outputs=output)
-    return siamese_model
-
-
-# Define the siamese network architecture with a pre-trained base network
-def create_siamese_model_v2(input_shape):
+def create_siamese_model_with_yolo(input_shape, yolo_model):
     input_1 = tf.keras.Input(shape=input_shape)
     input_2 = tf.keras.Input(shape=input_shape)
 
     # Load a pre-trained image classification network as the shared subnetwork
-    base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling = 'max')
+    base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
     base_network.trainable = False  # Freeze the pre-trained weights
+
+    yolo_input_1 = tf.keras.Input(shape=(...))  # Shape for YOLO predictions
+    yolo_input_2 = tf.keras.Input(shape=(...))  # Shape for YOLO predictions
+
+    # Obtain YOLO detections for both inputs
+    yolo_output_1 = yolo_model.predict(yolo_input_1)
+    yolo_output_2 = yolo_model.predict(yolo_input_2)
 
     output_1 = base_network(input_1)
     output_2 = base_network(input_2)
 
     # Measure the similarity of the two outputs
     distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
-    combined = tf.concat([output_1, output_2, distance], axis = 1)
+
+    # Concatenate the outputs and YOLO detections
+    combined = tf.concat([output_1, output_2, distance, yolo_output_1, yolo_output_2], axis=1)
+
     # Final output layer
     output_dense = layers.Dense(512, activation='relu')(combined)
     output_dense = layers.Dense(256, activation='relu')(output_dense)
@@ -80,6 +63,7 @@ def create_siamese_model_v2(input_shape):
 
     siamese_model = tf.keras.Model(inputs=[input_1, input_2], outputs=output)
     return siamese_model
+
 
 
 # Read the CSV file
@@ -107,7 +91,7 @@ print(len(train_image_paths_1), len(test_image_paths_2))
 
 # Compile the model
 input_shape = (299, 299, 3)  # Adjust the input shape based on your images
-siamese_model = create_siamese_model_v2(input_shape)
+siamese_model = create_siamese_model_with_yolo(input_shape, YOLO("C:\\Users\\cchan\\computer-vision\\runs\\detect\\train5\\weights\\best.pt"))
 siamese_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 # Train the model with your dataset
