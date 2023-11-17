@@ -31,13 +31,13 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
                         'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
                     }, np.array(batch_labels)
 
-def custom_fit(siamese_model, yolo_model, data_gen, num_epochs=10, steps_per_epoch=100, batch_size = 32):
+def custom_fit(siamese_model, yolo_model, num_epochs=10, steps_per_epoch=100, batch_size = 32):
     optimizer = tf.keras.optimizers.Adam()
     loss_fn = tf.keras.losses.BinaryCrossentropy()
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch + 1}/{num_epochs}")
-        
+        data_gen = data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size)
         for step in range(steps_per_epoch):
             inputs, labels = next(data_gen)
             
@@ -49,17 +49,9 @@ def custom_fit(siamese_model, yolo_model, data_gen, num_epochs=10, steps_per_epo
             yolo_input_2 = [load_img(image_path) for image_path in input_2_paths]
             
             # Make YOLO predictions
-            yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35)
-            yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35)
+            yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose = False)
+            yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose = False)
 
-            print("the length of yolo output 1 is", len(yolo_output_1))
-            print("the length of yolo output 2 is", len(yolo_output_2))
-
-
-            print("the type of the yolo output is", type(yolo_output_1))
-            print("the type of the yolo output[0] is", type(yolo_output_1[0]))
-            print("the type of the yolo output[0].boxes is", type(yolo_output_1[0].boxes))
-            
             num1 = []
             num2 = []
 
@@ -70,15 +62,21 @@ def custom_fit(siamese_model, yolo_model, data_gen, num_epochs=10, steps_per_epo
 
             # Train the siamese model
             with tf.GradientTape() as tape:
+                num1 = np.array(num1)
+                num2 = np.array(num2)
+                labels = [[i] for i in labels]
                 outputs = siamese_model([input_1_images, input_2_images, num1, num2])
                 loss = loss_fn(labels, outputs)
+                # Calculate accuracy
+                predicted_labels = [1 if output >= 0.5 else 0 for output in outputs]
+                true_labels = [label[0] for label in labels]
+                accuracy = np.mean(np.array(predicted_labels) == np.array(true_labels))
                 # Compute gradients and update weights
                 gradients = tape.gradient(loss, siamese_model.trainable_variables)
                 optimizer.apply_gradients(zip(gradients, siamese_model.trainable_variables))
 
-            # Display loss or any other relevant information
-            if step % 10 == 0:
-                print(f"Step {step}/{steps_per_epoch}, Loss: {loss:.4f}")
+            # Display loss and accuracy
+            print(f"Step {step}/{steps_per_epoch}, Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
 
 def create_siamese_model(input_shape):
     input_1 = tf.keras.Input(shape=input_shape)
@@ -122,40 +120,15 @@ train_labels = train['labels']
 test_image_paths_1 = test['img_path_1']
 test_image_paths_2 = test['img_path_2']
 test_labels = test['labels']
+
+training_length = len(train_image_paths_1)
 batch_size = 32
-print(len(train_image_paths_1), len(test_image_paths_2))
+print("training length: ", len(train_image_paths_1), "testing length: ", len(test_image_paths_2))
 
 # Compile the model
 input_shape = (299, 299, 3)  # Adjust the input shape based on your images
 
 yolo_model = YOLO("best.pt")
-data_gen = data_generator(train_image_paths_1, train_image_paths_2, train_labels, batch_size)
 siamese_model = create_siamese_model(input_shape)
-custom_fit(siamese_model, yolo_model, data_gen)
-
-# Visualize the training history
-plt.figure(figsize=(12, 6))
-
-# Plot training and validation loss values
-plt.subplot(1, 2, 1)
-plt.plot(history.history['loss'], label='Training Loss')
-plt.plot(history.history['val_loss'], label='Validation Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('Training and Validation Loss')
-plt.legend()
-
-# Plot training and validation accuracy values
-plt.subplot(1, 2, 2)
-plt.plot(history.history['accuracy'], label='Training Accuracy')
-plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.title('Training and Validation Accuracy')
-plt.legend()
-
-plt.show()
-# Evaluate the model
-# Assuming you have `test_images_1` and `test_images_2` for testing the model
-#test_loss, test_accuracy = siamese_model.evaluate(data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size), steps=len(test_labels)//batch_size)
-#print(f'Test loss: {test_loss}, Test accuracy: {test_accuracy}')
+# custom_fit(siamese_model, yolo_model, data_gen)
+custom_fit(siamese_model, yolo_model, num_epochs=10, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
