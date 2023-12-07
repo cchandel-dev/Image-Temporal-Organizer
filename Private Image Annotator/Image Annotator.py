@@ -20,6 +20,18 @@ class ImageAnnotator:
         self.canvas = tk.Canvas(root)
         self.canvas.pack()
 
+        # Add class selection dropdown
+        self.classes = ["Scalpel", "Forceps", "Surgical Scissors", "Surgical Retractors", "Hemostats or Clamps"]  # Initial set of classes
+        self.selected_class = tk.StringVar(root)
+        self.selected_class.set(self.classes[0])
+        self.class_dropdown = tk.OptionMenu(root, self.selected_class, *self.classes)
+        self.class_dropdown.pack(side=tk.TOP)
+
+        # Entry field to add new classes
+        self.new_class_entry = tk.Entry(root)
+        self.new_class_entry.pack(side=tk.TOP)
+        add_class_button = tk.Button(root, text="Add Class", command=self.add_new_class)
+        add_class_button.pack(side=tk.TOP)
 
          # Add a label
         self.label = tk.Label(root, text="Your Label Text")
@@ -33,6 +45,13 @@ class ImageAnnotator:
         self.canvas.bind("<B1-Motion>", self.drawing_rectangle)
         self.canvas.bind("<ButtonRelease-1>", self.finish_drawing_rectangle)
 
+    def add_new_class(self):
+            new_class = self.new_class_entry.get()
+            if new_class and new_class not in self.classes:
+                self.classes.append(new_class)
+                self.class_dropdown['menu'].delete(0, 'end')
+                for c in self.classes:
+                    self.class_dropdown['menu'].add_command(label=c, command=tk._setit(self.selected_class, c))
 
     def load_image(self):
         image_path = os.path.join(self.image_folder, self.image_list[self.current_index])
@@ -87,7 +106,10 @@ class ImageAnnotator:
         min_y = min(self.start_y, event.y)
         max_y = max(self.start_y, event.y)
         self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y)
-        self.rectangles.append([min_x, min_y, max_x - min_x, max_y - min_y])
+        # Get selected class label
+        selected_label = self.selected_class.get()
+        # Store rectangle coordinates along with the selected class label
+        self.rectangles.append([min_x, min_y, max_x - min_x, max_y - min_y, selected_label])
         print("rectangle_x", min_x, "rectangle_y", min_y, "width", max_x - min_x, "height", max_y - min_y )
         image_width, image_height = self.image.shape[1] * 0.5, self.image.shape[0] *0.5
         print("normalized x", min_x/image_width, "normalized y", min_y/image_height, "normalized width", (max_x - min_x)/image_width,"normalized height", (max_y - min_y)/image_height )
@@ -99,7 +121,7 @@ class ImageAnnotator:
         print("labels image width: ", image_width, "labels image height: ", image_height)
         with open(os.path.join(label_folder, self.image_list[self.current_index - 1][:-4]+".txt"), 'w') as file:
             for rect_coords in self.rectangles:
-                x, y, w, h = rect_coords
+                x, y, w, h, label = rect_coords
 
                 # Normalize coordinates
                 x_center = (x + w / 2) / image_width
@@ -107,7 +129,7 @@ class ImageAnnotator:
                 width = w / image_width
                 height = h / image_height
                 print("normalized x center", x_center, "normalized y center", y_center, "normalized width", width, "normalized height", height )
-                label = f"0 {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f} \n"
+                label = f"{self.classes.index(label)} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f} \n"
                 file.write(label)
         self.rectangles = []
 
