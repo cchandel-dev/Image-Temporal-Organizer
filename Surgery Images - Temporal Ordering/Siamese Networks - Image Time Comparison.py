@@ -10,6 +10,21 @@ import sys, time
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
+def checkpoint(model_name, completed_training):
+    # Define the ModelCheckpoint callback
+    checkpoint_path = 'path/to/save/checkpoints/{model_name}_{completed_training}.h5'
+    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+                                                                checkpoint_path,
+                                                                monitor='val_loss',  # Monitor validation loss
+                                                                save_best_only=True,  # Save only the best model
+                                                                mode='min',  # Mode for monitoring the metric (minimize validation loss)
+                                                                verbose=1  # Verbosity level
+                                                            )
+    
+# Define a function to save the model
+def save_model(model, file_path):
+    model.save(file_path)
+    print(f"Model saved at {file_path}")
 
 def loading_bar(total, completed):
     progress = int((completed / total) * 100)
@@ -46,10 +61,6 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
 def custom_fit(siamese_model, yolo_model, num_epochs=10, steps_per_epoch=100, batch_size = 64, patience = 3):
     optimizer = tf.keras.optimizers.Adam()
     loss_fn = tf.keras.losses.BinaryCrossentropy()
-    # Early Stopping Callback
-    early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', patience=patience, restore_best_weights=True
-    )
     history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}  # Create an empty history dictionary
     for epoch in range(num_epochs):
         print(f"Training Epoch {epoch + 1}/{num_epochs}")
@@ -146,7 +157,7 @@ def custom_fit(siamese_model, yolo_model, num_epochs=10, steps_per_epoch=100, ba
             if all(recent_val_losses[i] > recent_val_losses[i + 1] for i in range(patience)):
                 print(f"Stopping early as validation loss didn't improve for {patience} epochs.")
                 break
-    return history
+    return history, siamese_model
 
 def create_siamese_model(input_shape):
     input_1 = tf.keras.Input(shape=input_shape)
@@ -200,8 +211,18 @@ input_shape = (299, 299, 3)  # Adjust the input shape based on your images
 
 yolo_model = YOLO("best.pt")
 siamese_model = create_siamese_model(input_shape)
-# custom_fit(siamese_model, yolo_model, data_gen)
-history = custom_fit(siamese_model, yolo_model, num_epochs = 30, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
+try:
+    # custom_fit(siamese_model, yolo_model, data_gen)
+    history, siamese_model = custom_fit(siamese_model, yolo_model, num_epochs = 30, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
+except KeyboardInterrupt:
+    # If KeyboardInterrupt (Ctrl+C) is detected, save the model which is passed by reference not passed by value
+    save_model(siamese_model, 'model_interrupted.h5')
+    print("Training interrupted. Model saved.")
+
+
+
+# save the model when you are done with training it
+save_model(siamese_model, 'temporal_ordering_model_trained.h5')
 
 # Plotting the training and validation loss
 plt.figure(figsize=(10, 5))
@@ -224,3 +245,4 @@ plt.legend()
 
 plt.tight_layout()
 plt.show()
+
