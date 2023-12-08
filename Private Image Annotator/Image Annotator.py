@@ -3,6 +3,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+import randomcolor
 
 class ImageAnnotator:
     def __init__(self, root, image_folder, label_folder):
@@ -19,19 +20,45 @@ class ImageAnnotator:
         # Create GUI components
         self.canvas = tk.Canvas(root)
         self.canvas.pack()
+        self.outline_width = 3
+        # Initialize random color generator
+        self.color_generator = randomcolor.RandomColor()
 
         # Add class selection dropdown
         self.classes = ["Scalpel", "Forceps", "Surgical Scissors", "Surgical Retractors", "Hemostats or Clamps"]  # Initial set of classes
+        # Dictionary mapping classes to colors
+        self.class_colors = {
+            "Scalpel": "red",
+            "Forceps": "green",
+            "Surgical Scissors": "blue",
+            "Surgical Retractors":"purple",
+            "Hemostats or Clamps": "yellow"
+            # Add more classes and colors as needed
+        }
+        # Frame to hold the label and dropdown menu
+        class_frame = tk.Frame(root)
+        class_frame.pack(side=tk.RIGHT)
+
+        # Label above the dropdown menu
+        class_label = tk.Label(class_frame, text="Select Class:")
+        class_label.grid(row=0, column=0)
+
+        # Add class selection dropdown to the right
+        self.classes = list(self.class_colors.keys())  # Use keys from class_colors as classes
         self.selected_class = tk.StringVar(root)
         self.selected_class.set(self.classes[0])
-        self.class_dropdown = tk.OptionMenu(root, self.selected_class, *self.classes)
-        self.class_dropdown.pack(side=tk.TOP)
+        self.class_dropdown = tk.OptionMenu(class_frame, self.selected_class, *self.classes)
+        self.class_dropdown.grid(row=1, column=0)
+
+        # Frame for the entry field and "Add Class" button
+        add_class_frame = tk.Frame(root)
+        add_class_frame.pack(side=tk.RIGHT)
 
         # Entry field to add new classes
-        self.new_class_entry = tk.Entry(root)
-        self.new_class_entry.pack(side=tk.TOP)
-        add_class_button = tk.Button(root, text="Add Class", command=self.add_new_class)
-        add_class_button.pack(side=tk.TOP)
+        self.new_class_entry = tk.Entry(add_class_frame)
+        self.new_class_entry.pack(side=tk.LEFT)
+        add_class_button = tk.Button(add_class_frame, text="Add Class", command=self.add_new_class)
+        add_class_button.pack(side=tk.RIGHT)
 
          # Add a label
         self.label = tk.Label(root, text="Your Label Text")
@@ -46,12 +73,22 @@ class ImageAnnotator:
         self.canvas.bind("<ButtonRelease-1>", self.finish_drawing_rectangle)
 
     def add_new_class(self):
-            new_class = self.new_class_entry.get()
-            if new_class and new_class not in self.classes:
-                self.classes.append(new_class)
-                self.class_dropdown['menu'].delete(0, 'end')
-                for c in self.classes:
-                    self.class_dropdown['menu'].add_command(label=c, command=tk._setit(self.selected_class, c))
+        new_class = self.new_class_entry.get()
+        if new_class and new_class not in self.classes:
+            self.classes.append(new_class)
+            self.class_colors[new_class] = self.generate_random_color()
+            self.update_dropdown_menu()
+
+    def generate_random_color(self):
+        # Generate a random color for dynamically added classes
+        return self.color_generator.generate()[0]
+
+    def update_dropdown_menu(self):
+        # Update the dropdown menu with new classes and colors
+        self.class_dropdown['menu'].delete(0, 'end')
+        for c in self.classes:
+            self.class_dropdown['menu'].add_command(label=c, command=tk._setit(self.selected_class, c))
+
 
     def load_image(self):
         image_path = os.path.join(self.image_folder, self.image_list[self.current_index])
@@ -97,7 +134,10 @@ class ImageAnnotator:
 
     def drawing_rectangle(self, event):
         self.canvas.delete(self.current_rectangle)
-        self.current_rectangle = self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y)
+        # Get selected class label and its associated color
+        selected_label = self.selected_class.get()
+        rectangle_color = self.class_colors.get(selected_label, "black")  # Default color: black
+        self.current_rectangle = self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y, outline=rectangle_color, width=self.outline_width)
 
     def finish_drawing_rectangle(self, event):
         print("ending_x: ", event.x, "ending_y: ", event.y)
@@ -105,9 +145,13 @@ class ImageAnnotator:
         max_x = max(self.start_x, event.x)
         min_y = min(self.start_y, event.y)
         max_y = max(self.start_y, event.y)
-        self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y)
-        # Get selected class label
+        # Get selected class label and its associated color
         selected_label = self.selected_class.get()
+        rectangle_color = self.class_colors.get(selected_label, "black")  # Default color: black
+
+        # Draw rectangle with the selected class's color
+        self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y, outline=rectangle_color, width=self.outline_width)
+
         # Store rectangle coordinates along with the selected class label
         self.rectangles.append([min_x, min_y, max_x - min_x, max_y - min_y, selected_label])
         print("rectangle_x", min_x, "rectangle_y", min_y, "width", max_x - min_x, "height", max_y - min_y )

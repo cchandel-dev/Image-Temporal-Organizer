@@ -58,10 +58,9 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
                         'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
                     }, np.array(batch_labels)
 
-def custom_fit(siamese_model, yolo_model, num_epochs=10, steps_per_epoch=100, batch_size = 64, patience = 3):
+def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoch=100, batch_size = 64, patience = 3):
     optimizer = tf.keras.optimizers.Adam()
     loss_fn = tf.keras.losses.BinaryCrossentropy()
-    history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}  # Create an empty history dictionary
     for epoch in range(num_epochs):
         print(f"Training Epoch {epoch + 1}/{num_epochs}")
         per_epoch_history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}  # Create an empty history dictionary
@@ -146,11 +145,11 @@ def custom_fit(siamese_model, yolo_model, num_epochs=10, steps_per_epoch=100, ba
             per_epoch_history['val_loss'].append(val_loss)
             per_epoch_history['val_accuracy'].append(val_accuracy)
         # Display loss and accuracy
-        print(f"Step {step}/{steps_per_epoch}, Loss: {loss:.4f}, Validation Loss: {val_loss:.4f}, Accuracy: {accuracy:.4f}, Validation Accuracy: {val_accuracy:.4f}")
         history['loss'].append(sum(per_epoch_history['loss']) / len(per_epoch_history['loss']))
         history['val_loss'].append(sum(per_epoch_history['val_loss']) / len(per_epoch_history['val_loss']))
         history['accuracy'].append(sum(per_epoch_history['accuracy']) / len(per_epoch_history['accuracy']))
         history['val_accuracy'].append(sum(per_epoch_history['val_accuracy']) / len(per_epoch_history['val_accuracy']))
+        print(f"Epoch {epoch}/{num_epochs}, Loss: {history['loss']:.4f}, Validation Loss: {history['val_loss']:.4f}, Accuracy: {history['accuracy']:.4f}, Validation Accuracy: {history['val_accuracy']:.4f}")
         # Check for early stopping
         if epoch >= patience:  # Check if current epoch is greater than or equal to patience
             recent_val_losses = history['val_loss'][-(patience + 1):]
@@ -187,62 +186,88 @@ def create_siamese_model(input_shape):
 
 
 
+if __name__ == '__main__':
+    # Read the CSV file
+    csv_file_path = './data.json'
+    data = pd.read_json(csv_file_path)
 
-# Read the CSV file
-csv_file_path = './data.json'
-data = pd.read_json(csv_file_path)
-train = data['train']
-test = data['test']
-#define data_generator inputs
-train_image_paths_1 = train['img_path_1']
-train_image_paths_2 = train['img_path_2']
-train_labels = train['labels']
+    # Define data_generator inputs
+    train = data['train']
+    test = data['test']
+    train_image_paths_1 = train['img_path_1']
+    train_image_paths_2 = train['img_path_2']
+    train_labels = train['labels']
+    test_image_paths_1 = test['img_path_1']
+    test_image_paths_2 = test['img_path_2']
+    test_labels = test['labels']
 
-test_image_paths_1 = test['img_path_1']
-test_image_paths_2 = test['img_path_2']
-test_labels = test['labels']
+    # Setting up some of the constants
+    training_length = len(test_image_paths_1)
+    batch_size = 32
+    print("training length: ", len(train_image_paths_1), "testing length: ", len(test_image_paths_2))
 
-training_length = len(test_image_paths_1)
-batch_size = 32
-print("training length: ", len(train_image_paths_1), "testing length: ", len(test_image_paths_2))
+    # Compile the model
+    input_shape = (299, 299, 3)  # Adjust the input shape based on your images
 
-# Compile the model
-input_shape = (299, 299, 3)  # Adjust the input shape based on your images
+    yolo_model = YOLO("best.pt")
+    siamese_model = create_siamese_model(input_shape)
+    completed = False
+    history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}  # Create an empty history dictionary
+    try:
+        siamese_model = custom_fit(siamese_model, history, yolo_model, num_epochs = 30, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
+        completed = True
+    except KeyboardInterrupt:
+        
+        # If KeyboardInterrupt (Ctrl+C) is detected, save the model which is passed by reference not passed by value
+        save_model(siamese_model, 'model_interrupted.h5')
+        print("Training interrupted. Model saved.")
 
-yolo_model = YOLO("best.pt")
-siamese_model = create_siamese_model(input_shape)
-try:
-    # custom_fit(siamese_model, yolo_model, data_gen)
-    history, siamese_model = custom_fit(siamese_model, yolo_model, num_epochs = 30, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
-except KeyboardInterrupt:
-    # If KeyboardInterrupt (Ctrl+C) is detected, save the model which is passed by reference not passed by value
-    save_model(siamese_model, 'model_interrupted.h5')
-    print("Training interrupted. Model saved.")
+        # Plotting the training and validation loss
+        plt.figure(figsize=(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(history['loss'], label='Training Loss')
+        plt.plot(history['val_loss'], label='Validation Loss')
+        plt.title('Training and Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+
+        # Plotting the training and validation accuracy
+        plt.subplot(1, 2, 2)
+        plt.plot(history['accuracy'], label='Training Accuracy')
+        plt.plot(history['val_accuracy'], label='Validation Accuracy')
+        plt.title('Training and Validation Accuracy')
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
 
 
+    if completed:
+        # save the model when you are done with training it
+        save_model(siamese_model, 'temporal_ordering_model_trained.h5')
 
-# save the model when you are done with training it
-save_model(siamese_model, 'temporal_ordering_model_trained.h5')
+        # Plotting the training and validation loss
+        plt.figure(figsize=(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(history['loss'], label='Training Loss')
+        plt.plot(history['val_loss'], label='Validation Loss')
+        plt.title('Training and Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
 
-# Plotting the training and validation loss
-plt.figure(figsize=(10, 5))
-plt.subplot(1, 2, 1)
-plt.plot(history['loss'], label='Training Loss')
-plt.plot(history['val_loss'], label='Validation Loss')
-plt.title('Training and Validation Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.legend()
+        # Plotting the training and validation accuracy
+        plt.subplot(1, 2, 2)
+        plt.plot(history['accuracy'], label='Training Accuracy')
+        plt.plot(history['val_accuracy'], label='Validation Accuracy')
+        plt.title('Training and Validation Accuracy')
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plt.legend()
 
-# Plotting the training and validation accuracy
-plt.subplot(1, 2, 2)
-plt.plot(history['accuracy'], label='Training Accuracy')
-plt.plot(history['val_accuracy'], label='Validation Accuracy')
-plt.title('Training and Validation Accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.legend()
-
-plt.tight_layout()
-plt.show()
+        plt.tight_layout()
+        plt.show()
 
