@@ -25,13 +25,13 @@ class ImageAnnotator:
         self.color_generator = randomcolor.RandomColor()
 
         # Add class selection dropdown
-        self.classes = ["Scalpel", "Forceps", "Surgical Scissors", "Surgical Retractors", "Hemostats or Clamps"]  # Initial set of classes
+        self.classes = ["Scalpel", "Forceps", "Scissors", "Hook", "Hemostats or Clamps"]  # Initial set of classes
         # Dictionary mapping classes to colors
         self.class_colors = {
             "Scalpel": "red",
             "Forceps": "green",
-            "Surgical Scissors": "blue",
-            "Surgical Retractors":"purple",
+            "Scissors": "blue",
+            "Hook":"purple",
             "Hemostats or Clamps": "yellow"
             # Add more classes and colors as needed
         }

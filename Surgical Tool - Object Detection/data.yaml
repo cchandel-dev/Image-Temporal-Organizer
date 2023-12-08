@@ -1,9 +1,9 @@
-train: C:/Users/cchan/Laproscopic Surgery Work/Private Image Annotator/data/images
+train: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/train/images
 val: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/valid/images
 test: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/test/images
 
-nc: 1
-names: ['Surgical-Tool']
+nc: 5
+names: ["Scalpel", "Forceps", "Scissors", "Hook", "Hemostats or Clamps"]
 
 roboflow:
   workspace: dd-xsqu0
