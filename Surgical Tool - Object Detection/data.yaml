@@ -1,6 +1,6 @@
-train: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/train/images
-val: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/valid/images
-test: C:/Users/cchan/Laproscopic Surgery Work/Surgical Tool - Object Detection/test/images
+train: "D:\\Laproscopic Surgery Work\\Surgical Tool - Object Detection\\data\\train\\images"
+val: "D:\\Laproscopic Surgery Work\\Surgical Tool - Object Detection\\data\\train\\images"
+test: "D:\\Laproscopic Surgery Work\\Surgical Tool - Object Detection\\data\\test\\images"
 
 nc: 5
 names: ["Scalpel", "Forceps", "Scissors", "Hook", "Hemostats or Clamps"]
