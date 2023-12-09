@@ -58,6 +58,18 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
                         'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
                     }, np.array(batch_labels)
 
+
+# Read a results object class tensor and spit out a tensor of fixed length which represents frequency of each class
+def class_tensor_frequency(class_tensor, length = 7):
+    frequency = {i: 0 for i in range(length)}  # Initialize frequencies for each class label
+    for cls in class_tensor:
+        if cls in frequency:  # Ensure the class label exists in the frequency dictionary
+            frequency[cls] += 1
+    # Convert the frequency dictionary values to a tensor
+    frequency_tensor = tf.constant([frequency[i] for i in range(length)], dtype=tf.int32)
+    return frequency_tensor
+
+
 def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoch=100, batch_size = 64, patience = 3):
     optimizer = tf.keras.optimizers.Adam()
     loss_fn = tf.keras.losses.BinaryCrossentropy()
@@ -87,8 +99,11 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
 
             # convert the yolo output to a length tensor
             for idx in range(batch_size):
-                num1.append([len(yolo_output_1[idx].boxes.xywhn)])
-                num2.append([len(yolo_output_2[idx].boxes.xywhn)])
+                class_tensor_1 = yolo_output_1[idx].boxes.cls
+                class_tensor_2 = yolo_output_2[idx].boxes.cls
+                
+                num1.append(class_tensor_frequency(class_tensor_1))
+                num2.append(class_tensor_frequency(class_tensor_2))
 
             # Train the siamese model
             with tf.GradientTape() as tape:
@@ -129,8 +144,8 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
 
             # convert the yolo output to a length tensor
             for idx in range(batch_size):
-                num1.append([len(yolo_output_1[idx].boxes.xywhn)])
-                num2.append([len(yolo_output_2[idx].boxes.xywhn)])
+                num1.append(class_tensor_frequency(yolo_output_1[idx].boxes.cls))
+                num2.append(class_tensor_frequency(yolo_output_2[idx].boxes.cls))
             
             # We are not training the model here, just validating it
             num1 = np.array(num1)
