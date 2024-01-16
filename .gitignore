@@ -128,6 +128,11 @@ ENV/
 env.bak/
 venv.bak/
 siamese_env/
+annotator_env/
+
+#BIG FOLDERS
+Surgery Images - Temporal Ordering/trained models/
+Private Image Annotator/data/
 
 # Spyder project settings
 .spyderproject
