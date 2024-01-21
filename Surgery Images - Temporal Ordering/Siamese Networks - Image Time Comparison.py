@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 import sys, time
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-MODE = 0 # 0 is conv + yolo, 1 is just conv, 2 is just yolo 
+MODE = 0 # 0 is conv + yolo, 1 is just conv, 2 is just yolo
+yolo_model = YOLO("best.pt")
+
+
 def checkpoint(model_name, completed_training):
     # Define the ModelCheckpoint callback
     checkpoint_path = 'path/to/save/checkpoints/{model_name}_{completed_training}.h5'
@@ -134,7 +137,7 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
         print(f"Validation Epoch {epoch + 1}/{num_epochs}")
         for val_step in range(val_steps_per_epoch):
             loading_bar(val_steps_per_epoch, val_step)
-            val_inputs, val_labels = next(train_data_gen)
+            val_inputs, val_labels = next(val_data_gen)
             input_1_images, input_1_paths = val_inputs['input_1']
             input_2_images, input_2_paths = val_inputs['input_2']
 
@@ -220,93 +223,161 @@ def create_siamese_model(input_shape):
     siamese_model = tf.keras.Model(inputs=[input_1, input_2, input_num1, input_num2], outputs=outputs)
     return siamese_model
 
+def visualize_activations(model, layer_name, input_image_1, input_image_2):
+    # Create a submodel that includes the specified layer
+    intermediate_model = models.Model(inputs=model.input,
+                                      outputs=model.get_layer(layer_name).output)
+
+    if MODE == 2:
+        input_1_images = tf.zeros([batch_size, 299, 299, 3])
+        input_2_images = tf.zeros([batch_size, 299, 299, 3])
+        print('training image 1 and image 2 is zeroed out in mode{}'.format(MODE))
+
+    image_1 = load_and_preprocess_image(input_image_1)
+    image_2 = load_and_preprocess_image(input_image_2)
+
+    # Load and preprocess images for YOLO input
+    yolo_input_1 = [image_1]
+    yolo_input_2 = [image_2]
+            
+    # Make YOLO predictions
+    yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose=False)
+    yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose=False)
+
+    num1 = []
+    num2 = []
+
+    # convert the yolo output to a length tensor
+    for idx in range(1):
+        class_tensor_1 = yolo_output_1[idx].boxes.cls
+        class_tensor_2 = yolo_output_2[idx].boxes.cls
+                
+        num1.append(class_tensor_frequency(class_tensor_1))
+        num2.append(class_tensor_frequency(class_tensor_2))
+
+    num1 = np.array(num1)
+    num2 = np.array(num2)
+
+    activations = intermediate_model.predict([np.expand_dims(image_1, axis=0), np.expand_dims(image_2, axis=0), num1, num2])
+    
+    # Squeeze to remove dimensions with size 1
+    activations = np.squeeze(activations)
+
+    # Visualize the activations as a line plot
+    plt.plot(activations)
+    plt.title(f'Activations of Layer {layer_name}')
+    plt.xlabel('Activation Index')
+    plt.ylabel('Activation Value')
+    plt.show()
+
+
 if __name__ == '__main__':
     # Mode is modified by the argument
     try:
-        MODE = sys.argv[1]
+        MODE = int(sys.argv[1])
     except Exception:
         MODE = 0
     print('MODE:', MODE)
-    # Read the CSV file
-    csv_file_path = './data.json'
-    data = pd.read_json(csv_file_path)
 
-    # Define data_generator inputs
-    train = data['train']
-    test = data['test']
-    train_image_paths_1 = train['img_path_1']
-    train_image_paths_2 = train['img_path_2']
-    train_labels = train['labels']
-    test_image_paths_1 = test['img_path_1']
-    test_image_paths_2 = test['img_path_2']
-    test_labels = test['labels']
-
-    # Setting up some of the constants
-    training_length = len(test_image_paths_1)
-    batch_size = 64
-    print("training length: ", len(train_image_paths_1), "testing length: ", len(test_image_paths_2))
-
-    # Compile the model
-    input_shape = (299, 299, 3)  # Adjust the input shape based on your images
-
-    yolo_model = YOLO("best.pt")
-    siamese_model = create_siamese_model(input_shape)
-    completed = False
-    history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}  # Create an empty history dictionary
-    try:
-        history, siamese_model = custom_fit(siamese_model, history, yolo_model, num_epochs = 100, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
-        completed = True
-    except KeyboardInterrupt:
+    if MODE == 3:
+        print('We have sucessfuly entered mode 3.')
         
-        # If KeyboardInterrupt (Ctrl+C) is detected, save the model which is passed by reference not passed by value
-        save_model(siamese_model, 'model_interrupted_MODE{}.h5'.format(MODE))
-        print("Training interrupted. Model {} saved.".format(MODE))
+        # Load your siamese model
+        siamese_model = create_siamese_model((299, 299, 3))
+        siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
+        siamese_model.summary()
+        
+        # Choose a layer to visualize (you can find layer names using siamese_model.summary())
+        layers_to_visualize = ['dense', 'dense_1', 'dense_2']
 
-        # Plotting the training and validation loss
-        plt.figure(figsize=(10, 5))
-        plt.subplot(1, 2, 1)
-        plt.plot(history['loss'], label='Training Loss')
-        plt.plot(history['val_loss'], label='Validation Loss')
-        plt.title('Training and Validation Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend()
+        # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
+        sample_image_path_1 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\001.jpg'
+        sample_image_path_2 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\020.jpg'
+        visualize_activations(siamese_model, layers_to_visualize[0], sample_image_path_1, sample_image_path_2)
+        visualize_activations(siamese_model, layers_to_visualize[1], sample_image_path_1, sample_image_path_2)
+        visualize_activations(siamese_model, layers_to_visualize[2], sample_image_path_1, sample_image_path_2)
+        
+    if MODE != 3:
+        # Read the CSV file
+        csv_file_path = './data.json'
+        data = pd.read_json(csv_file_path)
 
-        # Plotting the training and validation accuracy
-        plt.subplot(1, 2, 2)
-        plt.plot(history['accuracy'], label='Training Accuracy')
-        plt.plot(history['val_accuracy'], label='Validation Accuracy')
-        plt.title('Training and Validation Accuracy')
-        plt.xlabel('Epoch')
-        plt.ylabel('Accuracy')
-        plt.legend()
+        # Define data_generator inputs
+        train = data['train']
+        test = data['test']
+        train_image_paths_1 = train['img_path_1']
+        train_image_paths_2 = train['img_path_2']
+        train_labels = train['labels']
+        test_image_paths_1 = test['img_path_1']
+        test_image_paths_2 = test['img_path_2']
+        test_labels = test['labels']
 
-        plt.tight_layout()
-        plt.show()
+        # Setting up some of the constants
+        training_length = len(test_image_paths_1)
+        batch_size = 64
+        print("training length: ", len(train_image_paths_1), "testing length: ", len(test_image_paths_2))
+
+        # Compile the model
+        input_shape = (299, 299, 3)  # Adjust the input shape based on your images
+
+        
+        siamese_model = create_siamese_model(input_shape)
+        completed = False
+        history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}  # Create an empty history dictionary
+        try:
+            history, siamese_model = custom_fit(siamese_model, history, yolo_model, num_epochs = 100, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
+            completed = True
+        except KeyboardInterrupt:
+            
+            # If KeyboardInterrupt (Ctrl+C) is detected, save the model which is passed by reference not passed by value
+            save_model(siamese_model, 'model_interrupted_MODE{}.h5'.format(MODE))
+            print("Training interrupted. Model {} saved.".format(MODE))
+
+            # Plotting the training and validation loss
+            plt.figure(figsize=(10, 5))
+            plt.subplot(1, 2, 1)
+            plt.plot(history['loss'], label='Training Loss')
+            plt.plot(history['val_loss'], label='Validation Loss')
+            plt.title('Training and Validation Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
+
+            # Plotting the training and validation accuracy
+            plt.subplot(1, 2, 2)
+            plt.plot(history['accuracy'], label='Training Accuracy')
+            plt.plot(history['val_accuracy'], label='Validation Accuracy')
+            plt.title('Training and Validation Accuracy')
+            plt.xlabel('Epoch')
+            plt.ylabel('Accuracy')
+            plt.legend()
+
+            plt.tight_layout()
+            plt.show()
 
 
-    if completed:
-        # save the model when you are done with training it
-        save_model(siamese_model, 'temporal_ordering_model_trained_MODE{}.h5'.format(MODE))
+        if completed:
+            # save the model when you are done with training it
+            save_model(siamese_model, 'temporal_ordering_model_trained_MODE{}.h5'.format(MODE))
 
-        # Plotting the training and validation loss
-        plt.figure(figsize=(10, 5))
-        plt.subplot(1, 2, 1)
-        plt.plot(history['loss'], label='Training Loss')
-        plt.plot(history['val_loss'], label='Validation Loss')
-        plt.title('Training and Validation Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend()
+            # Plotting the training and validation loss
+            plt.figure(figsize=(10, 5))
+            plt.subplot(1, 2, 1)
+            plt.plot(history['loss'], label='Training Loss')
+            plt.plot(history['val_loss'], label='Validation Loss')
+            plt.title('Training and Validation Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
 
-        # Plotting the training and validation accuracy
-        plt.subplot(1, 2, 2)
-        plt.plot(history['accuracy'], label='Training Accuracy')
-        plt.plot(history['val_accuracy'], label='Validation Accuracy')
-        plt.title('Training and Validation Accuracy')
-        plt.xlabel('Epoch')
-        plt.ylabel('Accuracy')
-        plt.legend()
+            # Plotting the training and validation accuracy
+            plt.subplot(1, 2, 2)
+            plt.plot(history['accuracy'], label='Training Accuracy')
+            plt.plot(history['val_accuracy'], label='Validation Accuracy')
+            plt.title('Training and Validation Accuracy')
+            plt.xlabel('Epoch')
+            plt.ylabel('Accuracy')
+            plt.legend()
 
-        plt.tight_layout()
-        plt.show()
+            plt.tight_layout()
+            plt.show()
