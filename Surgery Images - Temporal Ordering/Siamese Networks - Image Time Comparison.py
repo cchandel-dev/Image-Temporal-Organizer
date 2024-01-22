@@ -286,6 +286,8 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
         # tape.watch(num1_array)
         # tape.watch(num2_array)
 
+        print(num1_array)
+        print(num2_array)
         # Get the output of the specified layer for both inputs
         layer_output_1 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
         layer_output_2 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
@@ -339,8 +341,8 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
         num1.append(class_tensor_frequency(class_tensor_1))
         num2.append(class_tensor_frequency(class_tensor_2))
 
-    num1 = tf.convert_to_tensor(np.expand_dims(num1, axis=0))
-    num2 = tf.convert_to_tensor(np.expand_dims(num2, axis=0))
+    num1 = tf.convert_to_tensor(num1)
+    num2 = tf.convert_to_tensor(num2)
     
     saliency_map = compute_saliency_map(siamese_model, image_1, image_2, num1, num2, layer_name)
 
@@ -351,21 +353,25 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
     # Plot the original images, saliency map, and overlaid images
     plt.figure(figsize=(12, 4))
     
-    plt.subplot(1, 4, 1)
+    plt.subplot(1, 5, 1)
     plt.imshow(image_1)
     plt.title('Input Image 1')
 
-    plt.subplot(1, 4, 2)
+    plt.subplot(1, 5, 2)
     plt.imshow(image_2)
     plt.title('Input Image 2')
 
-    plt.subplot(1, 4, 3)
+    plt.subplot(1, 5, 3)
     plt.imshow(saliency_map, cmap='viridis')
     plt.title('Saliency Map')
 
-    plt.subplot(1, 4, 4)
+    plt.subplot(1, 5, 4)
     plt.imshow(overlaid_image_1)
     plt.title('Overlaid Image 1 with Saliency Map')
+
+    plt.subplot(1, 5, 5)
+    plt.imshow(overlaid_image_2)
+    plt.title('Overlaid Image 2 with Saliency Map')
 
     plt.show()
 
