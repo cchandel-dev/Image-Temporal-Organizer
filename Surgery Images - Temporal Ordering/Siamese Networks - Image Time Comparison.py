@@ -346,13 +346,13 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
     
     saliency_map = compute_saliency_map(siamese_model, image_1, image_2, num1, num2, layer_name)
 
-    # Overlay the saliency map on the input images
-    overlaid_image_1 = (0.7 * image_1) + (0.3 * np.expand_dims(saliency_map, axis=-1))
-    overlaid_image_2 = (0.7 * image_2) + (0.3 * np.expand_dims(saliency_map, axis=-1))
+    # Overlay the saliency map on the input images with increased weights
+    overlaid_image_1 = (0.3 * image_1) + (0.7 * np.expand_dims(saliency_map, axis=-1))
+    overlaid_image_2 = (0.3 * image_2) + (0.7 * np.expand_dims(saliency_map, axis=-1))
 
-    # Plot the original images, saliency map, and overlaid images
+    # Plot the original images, saliency map, and overlaid images with increased weights
     plt.figure(figsize=(12, 4))
-    
+
     plt.subplot(1, 5, 1)
     plt.imshow(image_1)
     plt.title('Input Image 1')
@@ -362,7 +362,7 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
     plt.title('Input Image 2')
 
     plt.subplot(1, 5, 3)
-    plt.imshow(saliency_map, cmap='viridis')
+    plt.imshow(saliency_map, cmap='plasma')  # Experiment with different colormaps
     plt.title('Saliency Map')
 
     plt.subplot(1, 5, 4)
