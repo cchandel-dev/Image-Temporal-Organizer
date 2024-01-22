@@ -313,22 +313,47 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
 
     return saliency_map_combined
 
-def visualize_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2, layer_name):
-    saliency_map = compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2, layer_name)
+def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
+    image_1 = load_and_preprocess_image(input_image_1)
+    image_2 = load_and_preprocess_image(input_image_2)
+
+    # Load and preprocess images for YOLO input
+    yolo_input_1 = [image_1]
+    yolo_input_2 = [image_2]
+            
+    # Make YOLO predictions
+    yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose=False)
+    yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose=False)
+
+    num1 = []
+    num2 = []
+
+    # convert the yolo output to a length tensor
+    for idx in range(1):
+        class_tensor_1 = yolo_output_1[idx].boxes.cls
+        class_tensor_2 = yolo_output_2[idx].boxes.cls
+                
+        num1.append(class_tensor_frequency(class_tensor_1))
+        num2.append(class_tensor_frequency(class_tensor_2))
+
+    num1 = np.array(num1)
+    num2 = np.array(num2)
+    
+    saliency_map = compute_saliency_map(siamese_model, image_1, image_2, num1, num2, layer_name)
 
     # Overlay the saliency map on the input images
-    overlaid_image_1 = (0.7 * input_image_1) + (0.3 * np.expand_dims(saliency_map, axis=-1))
-    overlaid_image_2 = (0.7 * input_image_2) + (0.3 * np.expand_dims(saliency_map, axis=-1))
+    overlaid_image_1 = (0.7 * image_1) + (0.3 * np.expand_dims(saliency_map, axis=-1))
+    overlaid_image_2 = (0.7 * image_2) + (0.3 * np.expand_dims(saliency_map, axis=-1))
 
     # Plot the original images, saliency map, and overlaid images
     plt.figure(figsize=(12, 4))
     
     plt.subplot(1, 4, 1)
-    plt.imshow(input_image_1)
+    plt.imshow(image_1)
     plt.title('Input Image 1')
 
     plt.subplot(1, 4, 2)
-    plt.imshow(input_image_2)
+    plt.imshow(image_2)
     plt.title('Input Image 2')
 
     plt.subplot(1, 4, 3)
@@ -367,6 +392,7 @@ if __name__ == '__main__':
         visualize_activations(siamese_model, layers_to_visualize[0], sample_image_path_1, sample_image_path_2)
         visualize_activations(siamese_model, layers_to_visualize[1], sample_image_path_1, sample_image_path_2)
         visualize_activations(siamese_model, layers_to_visualize[2], sample_image_path_1, sample_image_path_2)
+
     if MODE == 4:
         print('We have sucessfuly entered mode 4.')
         
