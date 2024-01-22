@@ -339,8 +339,8 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
         num1.append(class_tensor_frequency(class_tensor_1))
         num2.append(class_tensor_frequency(class_tensor_2))
 
-    num1 = np.array(num1)
-    num2 = np.array(num2)
+    num1 = tf.convert_to_tensor(np.expand_dims(num1, axis=0))
+    num2 = tf.convert_to_tensor(np.expand_dims(num2, axis=0))
     
     saliency_map = compute_saliency_map(siamese_model, image_1, image_2, num1, num2, layer_name)
 
