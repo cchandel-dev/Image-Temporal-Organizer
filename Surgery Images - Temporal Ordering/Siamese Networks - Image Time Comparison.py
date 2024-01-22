@@ -270,6 +270,72 @@ def visualize_activations(model, layer_name, input_image_1, input_image_2):
     plt.ylabel('Activation Value')
     plt.show()
 
+def compute_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
+
+
+    # Create a submodel that includes the specified layer
+    intermediate_model = tf.keras.models.Model(inputs=siamese_model.input,
+                                               outputs=siamese_model.get_layer(layer_name).output)
+
+    # Convert input images to TensorFlow constants
+    input_tensor_1 = tf.constant(np.expand_dims(input_image_1, axis=0), dtype=tf.float32)
+    input_tensor_2 = tf.constant(np.expand_dims(input_image_2, axis=0), dtype=tf.float32)
+
+    with tf.GradientTape(persistent=True) as tape:
+        # Watch the input tensors
+        tape.watch(input_tensor_1)
+        tape.watch(input_tensor_2)
+
+        # Get the output of the specified layer for both inputs
+        layer_output_1 = intermediate_model(input_tensor_1)
+        layer_output_2 = intermediate_model(input_tensor_2)
+
+    # Calculate the gradients of the output with respect to the input images
+    gradients_1 = tape.gradient(layer_output_1, input_tensor_1)
+    gradients_2 = tape.gradient(layer_output_2, input_tensor_2)
+
+    # Take the average absolute gradient over both inputs
+    saliency_map = tf.abs(gradients_1.numpy()[0]) + tf.abs(gradients_2.numpy()[0]) / 2.0
+
+    # Reduce to a single channel if the input images are RGB
+    if saliency_map.shape[-1] == 3:
+        saliency_map = np.mean(saliency_map, axis=-1)
+
+    # Normalize the saliency map to the range [0, 1]
+    saliency_map = (saliency_map - np.min(saliency_map)) / (np.max(saliency_map) - np.min(saliency_map))
+
+    return saliency_map
+
+def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
+    input_image_1 = load_and_preprocess_image(input_image_1)
+    input_image_2 = load_and_preprocess_image(input_image_2)
+    saliency_map = compute_saliency_map(siamese_model, input_image_1, input_image_2, layer_name)
+
+    # Overlay the saliency map on the input images
+    overlaid_image_1 = (0.7 * input_image_1) + (0.3 * np.expand_dims(saliency_map, axis=-1))
+    overlaid_image_2 = (0.7 * input_image_2) + (0.3 * np.expand_dims(saliency_map, axis=-1))
+
+    # Plot the original images, saliency map, and overlaid images
+    plt.figure(figsize=(12, 4))
+    
+    plt.subplot(1, 4, 1)
+    plt.imshow(input_image_1)
+    plt.title('Input Image 1')
+
+    plt.subplot(1, 4, 2)
+    plt.imshow(input_image_2)
+    plt.title('Input Image 2')
+
+    plt.subplot(1, 4, 3)
+    plt.imshow(saliency_map, cmap='viridis')
+    plt.title('Saliency Map')
+
+    plt.subplot(1, 4, 4)
+    plt.imshow(overlaid_image_1)
+    plt.title('Overlaid Image 1 with Saliency Map')
+
+    plt.show()
+
 
 if __name__ == '__main__':
     # Mode is modified by the argument
@@ -296,8 +362,23 @@ if __name__ == '__main__':
         visualize_activations(siamese_model, layers_to_visualize[0], sample_image_path_1, sample_image_path_2)
         visualize_activations(siamese_model, layers_to_visualize[1], sample_image_path_1, sample_image_path_2)
         visualize_activations(siamese_model, layers_to_visualize[2], sample_image_path_1, sample_image_path_2)
+    if MODE == 4:
+        print('We have sucessfuly entered mode 4.')
         
-    if MODE != 3:
+        # Load your siamese model
+        siamese_model = create_siamese_model((299, 299, 3))
+        siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
+        siamese_model.summary()
+        
+        # Choose a layer to visualize (you can find layer names using siamese_model.summary())
+        layers_to_visualize = ['dense', 'dense_1', 'dense_2']
+
+        # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
+        sample_image_path_1 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\001.jpg'
+        sample_image_path_2 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\020.jpg'
+        visualize_saliency_map(siamese_model, sample_image_path_1, sample_image_path_2, layer_name='dense')
+        
+    if MODE == 0 or MODE == 1 or MODE == 2:
         # Read the CSV file
         csv_file_path = './data.json'
         data = pd.read_json(csv_file_path)
