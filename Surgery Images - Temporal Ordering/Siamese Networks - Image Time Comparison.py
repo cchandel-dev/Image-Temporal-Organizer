@@ -228,11 +228,6 @@ def visualize_activations(model, layer_name, input_image_1, input_image_2):
     intermediate_model = models.Model(inputs=model.input,
                                       outputs=model.get_layer(layer_name).output)
 
-    if MODE == 2:
-        input_1_images = tf.zeros([batch_size, 299, 299, 3])
-        input_2_images = tf.zeros([batch_size, 299, 299, 3])
-        print('training image 1 and image 2 is zeroed out in mode{}'.format(MODE))
-
     image_1 = load_and_preprocess_image(input_image_1)
     image_2 = load_and_preprocess_image(input_image_2)
 
@@ -270,46 +265,56 @@ def visualize_activations(model, layer_name, input_image_1, input_image_2):
     plt.ylabel('Activation Value')
     plt.show()
 
-def compute_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
-
-
+def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2, layer_name):
     # Create a submodel that includes the specified layer
-    intermediate_model = tf.keras.models.Model(inputs=siamese_model.input,
-                                               outputs=siamese_model.get_layer(layer_name).output)
+    intermediate_model = models.Model(inputs=siamese_model.input,
+                                      outputs=siamese_model.get_layer(layer_name).output)
 
-    # Convert input images to TensorFlow constants
-    input_tensor_1 = tf.constant(np.expand_dims(input_image_1, axis=0), dtype=tf.float32)
-    input_tensor_2 = tf.constant(np.expand_dims(input_image_2, axis=0), dtype=tf.float32)
+    # Convert input images and numerical inputs to NumPy arrays
+    input_array_1 = np.expand_dims(input_image_1, axis=0)
+    input_array_2 = np.expand_dims(input_image_2, axis=0)
+    num1_array = np.expand_dims(num1, axis=0)
+    num2_array = np.expand_dims(num2, axis=0)
 
+    # Watch the input tensors
     with tf.GradientTape(persistent=True) as tape:
-        # Watch the input tensors
-        tape.watch(input_tensor_1)
-        tape.watch(input_tensor_2)
+        tape.watch(input_array_1)
+        tape.watch(input_array_2)
+        tape.watch(num1_array)
+        tape.watch(num2_array)
 
         # Get the output of the specified layer for both inputs
-        layer_output_1 = intermediate_model(input_tensor_1)
-        layer_output_2 = intermediate_model(input_tensor_2)
+        layer_output_1 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
+        layer_output_2 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
 
     # Calculate the gradients of the output with respect to the input images
-    gradients_1 = tape.gradient(layer_output_1, input_tensor_1)
-    gradients_2 = tape.gradient(layer_output_2, input_tensor_2)
+    gradients_1 = tape.gradient(layer_output_1, [input_array_1, num1_array])
+    gradients_2 = tape.gradient(layer_output_2, [input_array_2, num2_array])
 
-    # Take the average absolute gradient over both inputs
-    saliency_map = tf.abs(gradients_1.numpy()[0]) + tf.abs(gradients_2.numpy()[0]) / 2.0
+    # Extract the gradients of the input images
+    gradients_image_1, gradients_num1 = gradients_1
+    gradients_image_2, gradients_num2 = gradients_2
+
+    # Compute the saliency map using gradients
+    saliency_map_image_1 = tf.abs(gradients_image_1.numpy()[0]) / 2.0
+    saliency_map_image_2 = tf.abs(gradients_image_2.numpy()[0]) / 2.0
+    saliency_map_num1 = tf.abs(gradients_num1.numpy()[0]) / 2.0
+    saliency_map_num2 = tf.abs(gradients_num2.numpy()[0]) / 2.0
+
+    # Combine saliency maps for images and numerical inputs
+    saliency_map_combined = (saliency_map_image_1 + saliency_map_image_2 + saliency_map_num1 + saliency_map_num2) / 4.0
 
     # Reduce to a single channel if the input images are RGB
-    if saliency_map.shape[-1] == 3:
-        saliency_map = np.mean(saliency_map, axis=-1)
+    if saliency_map_combined.shape[-1] == 3:
+        saliency_map_combined = np.mean(saliency_map_combined, axis=-1)
 
     # Normalize the saliency map to the range [0, 1]
-    saliency_map = (saliency_map - np.min(saliency_map)) / (np.max(saliency_map) - np.min(saliency_map))
+    saliency_map_combined = (saliency_map_combined - np.min(saliency_map_combined)) / (np.max(saliency_map_combined) - np.min(saliency_map_combined))
 
-    return saliency_map
+    return saliency_map_combined
 
-def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
-    input_image_1 = load_and_preprocess_image(input_image_1)
-    input_image_2 = load_and_preprocess_image(input_image_2)
-    saliency_map = compute_saliency_map(siamese_model, input_image_1, input_image_2, layer_name)
+def visualize_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2, layer_name):
+    saliency_map = compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2, layer_name)
 
     # Overlay the saliency map on the input images
     overlaid_image_1 = (0.7 * input_image_1) + (0.3 * np.expand_dims(saliency_map, axis=-1))
