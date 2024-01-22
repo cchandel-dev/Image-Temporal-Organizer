@@ -270,18 +270,21 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
     intermediate_model = models.Model(inputs=siamese_model.input,
                                       outputs=siamese_model.get_layer(layer_name).output)
 
-    # Convert input images and numerical inputs to NumPy arrays
-    input_array_1 = np.expand_dims(input_image_1, axis=0)
-    input_array_2 = np.expand_dims(input_image_2, axis=0)
-    num1_array = np.expand_dims(num1, axis=0)
-    num2_array = np.expand_dims(num2, axis=0)
+    # Convert input images and numerical inputs to TensorFlow tensors
+    input_array_1 = tf.convert_to_tensor(np.expand_dims(input_image_1, axis=0))
+    input_array_2 = tf.convert_to_tensor(np.expand_dims(input_image_2, axis=0))
+    # num1_array = tf.convert_to_tensor(np.expand_dims(num1, axis=0))
+    # num2_array = tf.convert_to_tensor(np.expand_dims(num2, axis=0))
 
+    num1_array = num1
+    num2_array = num2
+    
     # Watch the input tensors
     with tf.GradientTape(persistent=True) as tape:
         tape.watch(input_array_1)
         tape.watch(input_array_2)
-        tape.watch(num1_array)
-        tape.watch(num2_array)
+        # tape.watch(num1_array)
+        # tape.watch(num2_array)
 
         # Get the output of the specified layer for both inputs
         layer_output_1 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
@@ -292,17 +295,17 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
     gradients_2 = tape.gradient(layer_output_2, [input_array_2, num2_array])
 
     # Extract the gradients of the input images
-    gradients_image_1, gradients_num1 = gradients_1
-    gradients_image_2, gradients_num2 = gradients_2
+    gradients_image_1, _ = gradients_1
+    gradients_image_2, _ = gradients_2
 
     # Compute the saliency map using gradients
     saliency_map_image_1 = tf.abs(gradients_image_1.numpy()[0]) / 2.0
     saliency_map_image_2 = tf.abs(gradients_image_2.numpy()[0]) / 2.0
-    saliency_map_num1 = tf.abs(gradients_num1.numpy()[0]) / 2.0
-    saliency_map_num2 = tf.abs(gradients_num2.numpy()[0]) / 2.0
+    # saliency_map_num1 = tf.abs(gradients_num1.numpy()[0]) / 2.0
+    # saliency_map_num2 = tf.abs(gradients_num2.numpy()[0]) / 2.0
 
     # Combine saliency maps for images and numerical inputs
-    saliency_map_combined = (saliency_map_image_1 + saliency_map_image_2 + saliency_map_num1 + saliency_map_num2) / 4.0
+    saliency_map_combined = (saliency_map_image_1 + saliency_map_image_2) / 2.0 # 4.0 # + saliency_map_num1 + saliency_map_num2
 
     # Reduce to a single channel if the input images are RGB
     if saliency_map_combined.shape[-1] == 3:
