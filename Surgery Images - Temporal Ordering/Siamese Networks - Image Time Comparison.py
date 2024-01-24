@@ -307,16 +307,21 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
     # saliency_map_num2 = tf.abs(gradients_num2.numpy()[0]) / 2.0
 
     # Combine saliency maps for images and numerical inputs
-    saliency_map_combined = (saliency_map_image_1 + saliency_map_image_2) / 2.0 # 4.0 # + saliency_map_num1 + saliency_map_num2
+    #saliency_map_combined = (saliency_map_image_1 + saliency_map_image_2) / 2.0 # 4.0 # + saliency_map_num1 + saliency_map_num2
 
     # Reduce to a single channel if the input images are RGB
-    if saliency_map_combined.shape[-1] == 3:
-        saliency_map_combined = np.mean(saliency_map_combined, axis=-1)
+    if saliency_map_image_1.shape[-1] == 3:
+        saliency_map_image_1 = np.mean(saliency_map_image_1, axis=-1)
+
+    if saliency_map_image_2.shape[-1] == 3:
+        saliency_map_image_2 = np.mean(saliency_map_image_2, axis=-1)
 
     # Normalize the saliency map to the range [0, 1]
-    saliency_map_combined = (saliency_map_combined - np.min(saliency_map_combined)) / (np.max(saliency_map_combined) - np.min(saliency_map_combined))
+    #saliency_map_combined = (saliency_map_combined - np.min(saliency_map_combined)) / (np.max(saliency_map_combined) - np.min(saliency_map_combined))
+    saliency_map_image_1 = (saliency_map_image_1 - np.min(saliency_map_image_1)) / (np.max(saliency_map_image_1) - np.min(saliency_map_image_1))
+    saliency_map_image_2 = (saliency_map_image_2 - np.min(saliency_map_image_2)) / (np.max(saliency_map_image_2) - np.min(saliency_map_image_2))
 
-    return saliency_map_combined
+    return saliency_map_image_1, saliency_map_image_2
 
 def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
     image_1 = load_and_preprocess_image(input_image_1)
@@ -344,32 +349,36 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
     num1 = tf.convert_to_tensor(num1)
     num2 = tf.convert_to_tensor(num2)
     
-    saliency_map = compute_saliency_map(siamese_model, image_1, image_2, num1, num2, layer_name)
+    saliency_map_1, saliency_map_2 = compute_saliency_map(siamese_model, image_1, image_2, num1, num2, layer_name)
 
     # Overlay the saliency map on the input images with increased weights
-    overlaid_image_1 = (0.3 * image_1) + (0.7 * np.expand_dims(saliency_map, axis=-1))
-    overlaid_image_2 = (0.3 * image_2) + (0.7 * np.expand_dims(saliency_map, axis=-1))
+    overlaid_image_1 = (0.3 * image_1) + (0.7 * np.expand_dims(saliency_map_1, axis=-1))
+    overlaid_image_2 = (0.3 * image_2) + (0.7 * np.expand_dims(saliency_map_2, axis=-1))
 
     # Plot the original images, saliency map, and overlaid images with increased weights
     plt.figure(figsize=(12, 4))
 
-    plt.subplot(1, 5, 1)
+    plt.subplot(1, 6, 1)
     plt.imshow(image_1)
     plt.title(f'Input Image {os.path.basename(input_image_1)}')
 
-    plt.subplot(1, 5, 2)
+    plt.subplot(1, 6, 2)
     plt.imshow(image_2)
     plt.title(f'Input Image {os.path.basename(input_image_2)}')
 
-    plt.subplot(1, 5, 3)
-    plt.imshow(saliency_map, cmap='plasma')  # Experiment with different colormaps
-    plt.title('Saliency Map')
+    plt.subplot(1, 6, 3)
+    plt.imshow(saliency_map_1, cmap='plasma')  # Experiment with different colormaps
+    plt.title('Saliency Map Im. 1')
 
-    plt.subplot(1, 5, 4)
+    plt.subplot(1, 6, 4)
+    plt.imshow(saliency_map_2, cmap='plasma')  # Experiment with different colormaps
+    plt.title('Saliency Map Im. 2')
+
+    plt.subplot(1, 6, 5)
     plt.imshow(overlaid_image_1)
-    plt.title(f'Overlaid {os.path.basename(input_image_1)} with Saliency Map')
 
-    plt.subplot(1, 5, 5)
+    plt.title(f'Overlaid {os.path.basename(input_image_1)} with Saliency Map')
+    plt.subplot(1, 6, 6)
     plt.imshow(overlaid_image_2)
     plt.title(f'Overlaid {os.path.basename(input_image_2)} with Saliency Map')
 
@@ -390,7 +399,7 @@ if __name__ == '__main__':
     try:
         MODE = int(sys.argv[1])
     except Exception:
-        MODE = 0
+        MODE = 4
     print('MODE:', MODE)
 
     if MODE == 3:
@@ -422,6 +431,7 @@ if __name__ == '__main__':
         # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
         filenames = ['02142010_192913\\001.jpg', '02142010_192913\\020.jpg', '02142010_204825\\007.jpg', '02142010_204825\\020.jpg', '09092011_130836\\013.jpg']
         looped_visualization(siamese_model, filenames)
+
         
     if MODE == 0 or MODE == 1 or MODE == 2:
         # Read the CSV file
