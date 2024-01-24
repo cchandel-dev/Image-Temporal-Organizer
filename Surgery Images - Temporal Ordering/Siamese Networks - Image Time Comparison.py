@@ -323,7 +323,7 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
 
     return saliency_map_image_1, saliency_map_image_2
 
-def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_name):
+def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_name, file_name):
     image_1 = load_and_preprocess_image(input_image_1)
     image_2 = load_and_preprocess_image(input_image_2)
 
@@ -376,23 +376,25 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
 
     plt.subplot(1, 6, 5)
     plt.imshow(overlaid_image_1)
-
     plt.title(f'Overlaid {os.path.basename(input_image_1)} with Saliency Map')
+
     plt.subplot(1, 6, 6)
     plt.imshow(overlaid_image_2)
     plt.title(f'Overlaid {os.path.basename(input_image_2)} with Saliency Map')
 
+    plt.savefig('saliency_maps/' + file_name)
+    plt.close()
     plt.show()
     
 def looped_visualization(siamese_model, filenames):
     # Choose a layer to visualize (you can find layer names using siamese_model.summary())
     layers_to_visualize = ['dense', 'dense_1', 'dense_2']
-    root_path = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images'
+    root_path = './images'
     for i in range(len(filenames)):
         for j in range(len(filenames)):
             if i != j:
                 print(i, j)
-                visualize_saliency_map(siamese_model, os.path.join(root_path, filenames[i]), os.path.join(root_path, filenames[j]), layers_to_visualize[0])
+                visualize_saliency_map(siamese_model, os.path.join(root_path, filenames[i]), os.path.join(root_path, filenames[j]), layers_to_visualize[0], f'{filenames[i][:-4].replace("/", "_")}_{filenames[j][-7:-4]}')
 
 if __name__ == '__main__':
     # Mode is modified by the argument
@@ -429,9 +431,8 @@ if __name__ == '__main__':
         siamese_model.summary()
 
         # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
-        filenames = ['02142010_192913\\001.jpg', '02142010_192913\\020.jpg', '02142010_204825\\007.jpg', '02142010_204825\\020.jpg', '09092011_130836\\013.jpg']
+        filenames = ['02142010_192913/001.jpg', '02142010_192913/020.jpg', '02142010_204825/007.jpg', '02142010_204825/020.jpg', '09092011_130836/013.jpg']
         looped_visualization(siamese_model, filenames)
-
         
     if MODE == 0 or MODE == 1 or MODE == 2:
         # Read the CSV file
