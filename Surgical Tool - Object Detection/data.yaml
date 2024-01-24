@@ -1,6 +1,6 @@
-train: "Surgical Tool - Object Detection\\data\\train\\images"
-val: "Surgical Tool - Object Detection\\data\\train\\images"
-test: "Surgical Tool - Object Detection\\data\\test\\images"
+train: "train\\images"
+val: "valid\\images"
+test: "test\\images"
 
 nc: 6
 names: ["Scalpel", "Forceps", "Scissors", "Hook", "Hemostats or Clamps", "Hole"]

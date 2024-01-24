@@ -8,4 +8,4 @@ model.info()
 
 
 # Train the model on the COCO8 example dataset for 100 epochs
-results = model.train(data='data.yaml', epochs=100, imgsz=640, verbose = True, patience = 20)
+results = model.train(data='data.yaml', epochs=1000, imgsz=640, verbose = True, patience = 100)

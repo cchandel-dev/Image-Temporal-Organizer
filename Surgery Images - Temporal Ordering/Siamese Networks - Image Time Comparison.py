@@ -6,7 +6,7 @@ from ultralytics import YOLO
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras import layers, models, applications
 import matplotlib.pyplot as plt
-import sys, time
+import os, sys, time
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 MODE = 0 # 0 is conv + yolo, 1 is just conv, 2 is just yolo
@@ -115,6 +115,9 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
                 num1.append(class_tensor_frequency(class_tensor_1))
                 num2.append(class_tensor_frequency(class_tensor_2))
 
+            print('num1', num1)
+            print('num2',num2)
+            
             # Train the siamese model
             with tf.GradientTape() as tape:
                 num1 = np.array(num1)
@@ -144,7 +147,6 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
             if MODE == 2:
                 input_1_images = tf.zeros([batch_size, 299, 299, 3])
                 input_2_images = tf.zeros([batch_size, 299, 299, 3])
-                print('validation image 1 and image 2 is zeroed out in mode{}'.format(MODE))
             
             # Load and preprocess images for YOLO input
             yolo_input_1 = [load_img(image_path) for image_path in input_1_paths]
@@ -286,8 +288,6 @@ def compute_saliency_map(siamese_model, input_image_1, input_image_2, num1, num2
         # tape.watch(num1_array)
         # tape.watch(num2_array)
 
-        print(num1_array)
-        print(num2_array)
         # Get the output of the specified layer for both inputs
         layer_output_1 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
         layer_output_2 = intermediate_model([input_array_1, input_array_2, num1_array, num2_array])
@@ -355,11 +355,11 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
 
     plt.subplot(1, 5, 1)
     plt.imshow(image_1)
-    plt.title('Input Image 1')
+    plt.title(f'Input Image {os.path.basename(input_image_1)}')
 
     plt.subplot(1, 5, 2)
     plt.imshow(image_2)
-    plt.title('Input Image 2')
+    plt.title(f'Input Image {os.path.basename(input_image_2)}')
 
     plt.subplot(1, 5, 3)
     plt.imshow(saliency_map, cmap='plasma')  # Experiment with different colormaps
@@ -367,14 +367,23 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
 
     plt.subplot(1, 5, 4)
     plt.imshow(overlaid_image_1)
-    plt.title('Overlaid Image 1 with Saliency Map')
+    plt.title(f'Overlaid {os.path.basename(input_image_1)} with Saliency Map')
 
     plt.subplot(1, 5, 5)
     plt.imshow(overlaid_image_2)
-    plt.title('Overlaid Image 2 with Saliency Map')
+    plt.title(f'Overlaid {os.path.basename(input_image_2)} with Saliency Map')
 
     plt.show()
-
+    
+def looped_visualization(siamese_model, filenames):
+    # Choose a layer to visualize (you can find layer names using siamese_model.summary())
+    layers_to_visualize = ['dense', 'dense_1', 'dense_2']
+    root_path = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images'
+    for i in range(len(filenames)):
+        for j in range(len(filenames)):
+            if i != j:
+                print(i, j)
+                visualize_saliency_map(siamese_model, os.path.join(root_path, filenames[i]), os.path.join(root_path, filenames[j]), layers_to_visualize[0])
 
 if __name__ == '__main__':
     # Mode is modified by the argument
@@ -409,14 +418,10 @@ if __name__ == '__main__':
         siamese_model = create_siamese_model((299, 299, 3))
         siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
         siamese_model.summary()
-        
-        # Choose a layer to visualize (you can find layer names using siamese_model.summary())
-        layers_to_visualize = ['dense', 'dense_1', 'dense_2']
 
         # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
-        sample_image_path_1 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\001.jpg'
-        sample_image_path_2 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\020.jpg'
-        visualize_saliency_map(siamese_model, sample_image_path_1, sample_image_path_2, layer_name='dense')
+        filenames = ['02142010_192913\\001.jpg', '02142010_192913\\020.jpg', '02142010_204825\\007.jpg', '02142010_204825\\020.jpg', '09092011_130836\\013.jpg']
+        looped_visualization(siamese_model, filenames)
         
     if MODE == 0 or MODE == 1 or MODE == 2:
         # Read the CSV file
