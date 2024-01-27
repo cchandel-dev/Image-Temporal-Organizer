@@ -1,13 +1,10 @@
-train: "train\\images"
-val: "valid\\images"
-test: "test\\images"
+train: train/images
+val: valid/images
+test: test/images
 
-nc: 6
-names: ["Scalpel", "Forceps", "Scissors", "Hook", "Hemostats or Clamps", "Hole"]
-
-roboflow:
-  workspace: dd-xsqu0
-  project: surgical-tool-detection-tsfnl
-  version: 1
-  license: CC BY 4.0
-  url: https://universe.roboflow.com/dd-xsqu0/surgical-tool-detection-tsfnl/dataset/1
+names: 
+  0: Clamp
+  1: Gripped Forceps
+  2: Hook
+  3: Surgical-Tool
+  4: Tubing

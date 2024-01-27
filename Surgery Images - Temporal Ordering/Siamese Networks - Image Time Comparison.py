@@ -64,16 +64,13 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
 
 # Read a results object class tensor and spit out a tensor of fixed length which represents frequency of each class
 def class_tensor_frequency(class_tensor, length = 7):
+    class_tensor = class_tensor.numpy()
     frequency = {i: 0 for i in range(length)}  # Initialize frequencies for each class label
-    if MODE == 0 or MODE == 2:
-        # print('frequency calculations happening in mode {}'.format(MODE))
-        for cls in class_tensor:
-            if cls in frequency:  # Ensure the class label exists in the frequency dictionary
-                frequency[cls] += 1
+    for cls in class_tensor:
+        frequency[cls] += 1
     # Convert the frequency dictionary values to a tensor
     frequency_tensor = tf.constant([frequency[i] for i in range(length)], dtype=tf.int32)
     return frequency_tensor
-
 
 def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoch=100, batch_size = 64, patience = 3):
     optimizer = tf.keras.optimizers.Adam()
@@ -97,12 +94,13 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
                 print('training image 1 and image 2 is zeroed out in mode{}'.format(MODE))
 
             # Load and preprocess images for YOLO input
-            yolo_input_1 = [load_img(image_path) for image_path in input_1_paths]
-            yolo_input_2 = [load_img(image_path) for image_path in input_2_paths]
+            yolo_input_1 = [image_path for image_path in input_1_paths]
+            yolo_input_2 = [image_path for image_path in input_2_paths]
             
             # Make YOLO predictions
             yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose = False)
             yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose = False)
+
 
             num1 = []
             num2 = []
@@ -115,8 +113,6 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
                 num1.append(class_tensor_frequency(class_tensor_1))
                 num2.append(class_tensor_frequency(class_tensor_2))
 
-            print('num1', num1)
-            print('num2',num2)
             
             # Train the siamese model
             with tf.GradientTape() as tape:
@@ -149,13 +145,13 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
                 input_2_images = tf.zeros([batch_size, 299, 299, 3])
             
             # Load and preprocess images for YOLO input
-            yolo_input_1 = [load_img(image_path) for image_path in input_1_paths]
-            yolo_input_2 = [load_img(image_path) for image_path in input_2_paths]
+            yolo_input_1 = [image_path for image_path in input_1_paths]
+            yolo_input_2 = [image_path for image_path in input_2_paths]
             
             # Make YOLO predictions
             yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose = False)
             yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose = False)
-
+            
             num1 = []
             num2 = []
 
@@ -232,14 +228,10 @@ def visualize_activations(model, layer_name, input_image_1, input_image_2):
 
     image_1 = load_and_preprocess_image(input_image_1)
     image_2 = load_and_preprocess_image(input_image_2)
-
-    # Load and preprocess images for YOLO input
-    yolo_input_1 = [image_1]
-    yolo_input_2 = [image_2]
             
     # Make YOLO predictions
-    yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose=False)
-    yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose=False)
+    yolo_output_1 = yolo_model.predict(input_image_1, save=False, imgsz=640, conf=0.35, verbose=False)
+    yolo_output_2 = yolo_model.predict(input_image_2, save=False, imgsz=640, conf=0.35, verbose=False)
 
     num1 = []
     num2 = []
@@ -327,13 +319,10 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
     image_1 = load_and_preprocess_image(input_image_1)
     image_2 = load_and_preprocess_image(input_image_2)
 
-    # Load and preprocess images for YOLO input
-    yolo_input_1 = [image_1]
-    yolo_input_2 = [image_2]
             
     # Make YOLO predictions
-    yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose=False)
-    yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose=False)
+    yolo_output_1 = yolo_model.predict(input_image_1, save=False, imgsz=640, conf=0.35, verbose=False)
+    yolo_output_2 = yolo_model.predict(input_image_2, save=False, imgsz=640, conf=0.35, verbose=False)
 
     num1 = []
     num2 = []
@@ -399,7 +388,7 @@ if __name__ == '__main__':
     try:
         MODE = int(sys.argv[1])
     except Exception:
-        MODE = 4
+        MODE = 0
     print('MODE:', MODE)
 
     if MODE == 3:
