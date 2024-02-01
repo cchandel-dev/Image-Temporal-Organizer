@@ -7,6 +7,20 @@ from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras import layers, models, applications
 import matplotlib.pyplot as plt
 import os, sys, time
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import tkinter as tk
+from tkinter import filedialog
+
+def select_file():
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+
+    file_path = filedialog.askopenfilename(title="Select a File")
+
+    if file_path:
+        return file_path
+
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 MODE = 0 # 0 is conv + yolo, 1 is just conv, 2 is just yolo
@@ -55,10 +69,25 @@ def data_generator(image_paths_1, image_paths_2, labels, batch_size=32):
 
             batch_images_1 = [load_and_preprocess_image(image_path) for image_path in batch_paths_1]
             batch_images_2 = [load_and_preprocess_image(image_path) for image_path in batch_paths_2]
+            
+            # Make YOLO predictions
+            yolo_output_1 = yolo_model.predict(batch_paths_1, save=False, imgsz=640, conf=0.35, verbose = False)
+            yolo_output_2 = yolo_model.predict(batch_paths_2, save=False, imgsz=640, conf=0.35, verbose = False)
+
+            num1 = []
+            num2 = []
+
+            # convert the yolo output to a length tensor
+            for idx in range(batch_size):
+                class_tensor_1 = yolo_output_1[idx].boxes.cls
+                class_tensor_2 = yolo_output_2[idx].boxes.cls
+                
+                num1.append(class_tensor_frequency(class_tensor_1))
+                num2.append(class_tensor_frequency(class_tensor_2))
 
             yield {
-                        'input_1': [np.array(batch_images_1), np.array(batch_paths_1)],
-                        'input_2': [np.array(batch_images_2), np.array(batch_paths_2)]
+                        'input_1': [np.array(batch_images_1), np.array(batch_paths_1), np.array(num1)],
+                        'input_2': [np.array(batch_images_2), np.array(batch_paths_2), np.array(num2)]
                     }, np.array(batch_labels)
 
 
@@ -85,41 +114,18 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
             loading_bar(steps_per_epoch, step)
             inputs, labels = next(train_data_gen)
             
-            input_1_images, input_1_paths = inputs['input_1']
-            input_2_images, input_2_paths = inputs['input_2']
+            input_1_images, input_1_paths, input_1_summary = inputs['input_1']
+            input_2_images, input_2_paths, input_2_summary = inputs['input_2']
 
             if MODE == 2:
                 input_1_images = tf.zeros([batch_size, 299, 299, 3])
                 input_2_images = tf.zeros([batch_size, 299, 299, 3])
                 print('training image 1 and image 2 is zeroed out in mode{}'.format(MODE))
-
-            # Load and preprocess images for YOLO input
-            yolo_input_1 = [image_path for image_path in input_1_paths]
-            yolo_input_2 = [image_path for image_path in input_2_paths]
-            
-            # Make YOLO predictions
-            yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose = False)
-            yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose = False)
-
-
-            num1 = []
-            num2 = []
-
-            # convert the yolo output to a length tensor
-            for idx in range(batch_size):
-                class_tensor_1 = yolo_output_1[idx].boxes.cls
-                class_tensor_2 = yolo_output_2[idx].boxes.cls
-                
-                num1.append(class_tensor_frequency(class_tensor_1))
-                num2.append(class_tensor_frequency(class_tensor_2))
-
             
             # Train the siamese model
             with tf.GradientTape() as tape:
-                num1 = np.array(num1)
-                num2 = np.array(num2)
                 labels = [[i] for i in labels]
-                outputs = siamese_model([input_1_images, input_2_images, num1, num2])
+                outputs = siamese_model([input_1_images, input_2_images, input_1_summary, input_2_summary])
                 loss = loss_fn(labels, outputs)
                 # Calculate accuracy
                 predicted_labels = [1 if output >= 0.5 else 0 for output in outputs]
@@ -137,34 +143,15 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
         for val_step in range(val_steps_per_epoch):
             loading_bar(val_steps_per_epoch, val_step)
             val_inputs, val_labels = next(val_data_gen)
-            input_1_images, input_1_paths = val_inputs['input_1']
-            input_2_images, input_2_paths = val_inputs['input_2']
+            input_1_images, input_1_paths, input_1_summary = val_inputs['input_1']
+            input_2_images, input_2_paths, input_2_summary = val_inputs['input_2']
 
             if MODE == 2:
                 input_1_images = tf.zeros([batch_size, 299, 299, 3])
                 input_2_images = tf.zeros([batch_size, 299, 299, 3])
             
-            # Load and preprocess images for YOLO input
-            yolo_input_1 = [image_path for image_path in input_1_paths]
-            yolo_input_2 = [image_path for image_path in input_2_paths]
-            
-            # Make YOLO predictions
-            yolo_output_1 = yolo_model.predict(yolo_input_1, save=False, imgsz=640, conf=0.35, verbose = False)
-            yolo_output_2 = yolo_model.predict(yolo_input_2, save=False, imgsz=640, conf=0.35, verbose = False)
-            
-            num1 = []
-            num2 = []
-
-            # convert the yolo output to a length tensor
-            for idx in range(batch_size):
-                num1.append(class_tensor_frequency(yolo_output_1[idx].boxes.cls))
-                num2.append(class_tensor_frequency(yolo_output_2[idx].boxes.cls))
-            
-            # We are not training the model here, just validating it
-            num1 = np.array(num1)
-            num2 = np.array(num2)
             val_labels = [[i] for i in val_labels]
-            outputs = siamese_model([input_1_images, input_2_images, num1, num2])
+            outputs = siamese_model([input_1_images, input_2_images, input_1_summary, input_2_summary])
             val_loss = loss_fn(val_labels, outputs)
             # Calculate accuracy
             predicted_labels = [1 if output >= 0.5 else 0 for output in outputs]
@@ -207,9 +194,6 @@ def create_siamese_model(input_shape):
     base_network.trainable = False  # Freeze the pre-trained weights
     output_1 = base_network(input_1)
     output_2 = base_network(input_2)
-
-    # Measure the similarity of the two outputs
-    # distance = layers.Lambda(lambda x: tf.abs(x[0] - x[1]))([output_1, output_2])
 
     # Concatenate the outputs and YOLO detections
     embedding = tf.concat([output_1, output_2, input_num1, input_num2], axis=1)
@@ -393,36 +377,14 @@ if __name__ == '__main__':
         MODE = 0
     print('MODE:', MODE)
 
-    if MODE == 3:
-        print('We have sucessfuly entered mode 3.')
-        
-        # Load your siamese model
-        siamese_model = create_siamese_model((299, 299, 3))
-        siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
-        siamese_model.summary()
-        
-        # Choose a layer to visualize (you can find layer names using siamese_model.summary())
-        layers_to_visualize = ['dense', 'dense_1', 'dense_2']
+    # Read the CSV file
+    csv_file_path = './data.json'
+    data = pd.read_json(csv_file_path)
 
-        # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
-        sample_image_path_1 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\001.jpg'
-        sample_image_path_2 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\020.jpg'
-        visualize_activations(siamese_model, layers_to_visualize[0], sample_image_path_1, sample_image_path_2)
-        visualize_activations(siamese_model, layers_to_visualize[1], sample_image_path_1, sample_image_path_2)
-        visualize_activations(siamese_model, layers_to_visualize[2], sample_image_path_1, sample_image_path_2)
-
-    if MODE == 4:
-        print('We have sucessfuly entered mode 4.')
-        
-        # Load your siamese model
-        siamese_model = create_siamese_model((299, 299, 3))
-        siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
-        siamese_model.summary()
-
-        # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
-        filenames = ['02142010_192913/001.jpg', '02142010_192913/020.jpg', '02142010_204825/007.jpg', '02142010_204825/020.jpg', '09092011_130836/013.jpg']
-        looped_visualization(siamese_model, filenames)
-        
+    test = data['test']
+    test_image_paths_1 = test['img_path_1']
+    test_image_paths_2 = test['img_path_2']
+    test_labels = test['labels']
     if MODE == 0 or MODE == 1 or MODE == 2:
         # Read the CSV file
         csv_file_path = './data.json'
@@ -430,13 +392,9 @@ if __name__ == '__main__':
 
         # Define data_generator inputs
         train = data['train']
-        test = data['test']
         train_image_paths_1 = train['img_path_1']
         train_image_paths_2 = train['img_path_2']
         train_labels = train['labels']
-        test_image_paths_1 = test['img_path_1']
-        test_image_paths_2 = test['img_path_2']
-        test_labels = test['labels']
 
         # Setting up some of the constants
         training_length = len(test_image_paths_1)
@@ -453,6 +411,8 @@ if __name__ == '__main__':
         try:
             history, siamese_model = custom_fit(siamese_model, history, yolo_model, num_epochs = 100, steps_per_epoch=training_length//batch_size, batch_size = batch_size)
             completed = True
+
+            #
         except KeyboardInterrupt:
             
             # If KeyboardInterrupt (Ctrl+C) is detected, save the model which is passed by reference not passed by value
@@ -507,3 +467,78 @@ if __name__ == '__main__':
 
             plt.tight_layout()
             plt.show()
+
+    if MODE == 3:
+        print('We have sucessfuly entered mode 3.')
+        
+        # Load your siamese model
+        siamese_model = create_siamese_model((299, 299, 3))
+        siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
+        siamese_model.summary()
+        
+        # Choose a layer to visualize (you can find layer names using siamese_model.summary())
+        layers_to_visualize = ['dense', 'dense_1', 'dense_2']
+
+        # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
+        sample_image_path_1 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\001.jpg'
+        sample_image_path_2 = 'C:\\Users\\Himani\Laproscopic-Surgery-Work\\Surgery Images - Temporal Ordering\\images\\02142010_192913\\020.jpg'
+        visualize_activations(siamese_model, layers_to_visualize[0], sample_image_path_1, sample_image_path_2)
+        visualize_activations(siamese_model, layers_to_visualize[1], sample_image_path_1, sample_image_path_2)
+        visualize_activations(siamese_model, layers_to_visualize[2], sample_image_path_1, sample_image_path_2)
+
+    if MODE == 4:
+        print('We have sucessfuly entered mode 4.')
+        
+        # Load your siamese model
+        siamese_model = create_siamese_model((299, 299, 3))
+        siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
+        siamese_model.summary()
+
+        # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
+        filenames = ['02142010_192913/001.jpg', '02142010_192913/020.jpg', '02142010_204825/007.jpg', '02142010_204825/020.jpg', '09092011_130836/013.jpg']
+        looped_visualization(siamese_model, filenames)
+    
+    if MODE == 5:
+        plt.tight_layout()
+        plt.show()
+        # Generate a random input sample for visualization
+        sample_input = tf.random.normal((1, your_input_shape))
+
+        # Extract the activations of the first hidden layer
+        activation_model = tf.keras.Model(inputs=siamese_model.input, outputs=siamese_model.layers[0].output)
+        activations = activation_model.predict(sample_input)
+
+        plt.bar(range(activations.shape[1]), activations[0])
+        plt.title('Activations of the First Hidden Layer')
+        plt.xlabel('Neuron Index')
+        plt.ylabel('Activation Value')
+        plt.show()
+
+    if MODE == 6:
+        loaded_model = tf.keras.models.load_model(select_file())
+        # Assuming you have a function to preprocess and load your test data in batches
+        batch_size = 32
+        test_data_generator = data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size)
+
+        # Initialize an empty list to store predictions
+        y_pred_accumulated = []
+        number_of_batches = len(test_labels) // batch_size
+        test_labels = test_labels[:batch_size * number_of_batches]
+
+        for _ in range(number_of_batches):
+            inputs, labels = next(test_data_generator)
+            input_1_images, input_1_paths, input_1_summary = inputs['input_1']
+            input_2_images, input_2_paths, input_2_summary = inputs['input_2']
+
+            # Iterate through batches and make predictions
+            predictions_batch = loaded_model.predict([input_1_images, input_2_images, input_1_summary, input_2_summary])
+            y_pred_accumulated.extend(predictions_batch)
+
+        y_pred_binary = np.array(y_pred_accumulated) > 0.5
+        cm = confusion_matrix(test_labels, y_pred_binary)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Image 1', 'Image 2'], yticklabels=['Image 1', 'Image 2'], annot_kws={"size": 16})
+        plt.title('Confusion Matrix', fontsize=36)
+        plt.xlabel('Predicted Label', fontsize=20)
+        plt.ylabel('True Label', fontsize=20)
+        plt.show()
