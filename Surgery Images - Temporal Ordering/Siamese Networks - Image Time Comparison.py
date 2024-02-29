@@ -198,8 +198,12 @@ def create_siamese_model(input_shape):
         # Concatenate the outputs and YOLO detections
         embedding = tf.concat([output_1, output_2, input_num1, input_num2], axis=1)
         # Run this embedding into the MLP
-        output_dense = layers.Dense(512, activation='relu')(embedding)
-        output_dense = layers.Dense(256, activation='relu')(output_dense)
+        output_dense = layers.Dense(200, activation='relu', kernel_regularizer=regularizers.l2(0.01))(embedding)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.6)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        output_dense = layers.Dense(200, activation='relu', kernel_regularizer=regularizers.l2(0.01))(embedding)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.6)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        output_dense = layers.Dense(50, activation='relu', kernel_regularizer=regularizers.l2(0.01))(output_dense)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.5)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
         outputs = layers.Dense(1, activation='sigmoid')(output_dense)
         siamese_model = tf.keras.Model(inputs=[input_1, input_2, input_num1, input_num2], outputs=outputs)
 
@@ -214,11 +218,14 @@ def create_siamese_model(input_shape):
         # Concatenate the outputs
         embedding = tf.concat([output_1, output_2], axis=1)
         # Run this embedding into the MLP
-        output_dense = layers.Dense(512, activation='relu')(embedding)
-        output_dense = layers.Dense(256, activation='relu')(output_dense)
+        output_dense = layers.Dense(200, activation='relu', kernel_regularizer=regularizers.l2(0.01))(embedding)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.6)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        output_dense = layers.Dense(200, activation='relu', kernel_regularizer=regularizers.l2(0.01))(embedding)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.6)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        output_dense = layers.Dense(50, activation='relu', kernel_regularizer=regularizers.l2(0.01))(output_dense)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.5)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
         outputs = layers.Dense(1, activation='sigmoid')(output_dense)
         siamese_model = tf.keras.Model(inputs=[input_1, input_2], outputs=outputs)
-
 
     if MODE == 2:
         input_num1 = tf.keras.Input(shape=(7))
