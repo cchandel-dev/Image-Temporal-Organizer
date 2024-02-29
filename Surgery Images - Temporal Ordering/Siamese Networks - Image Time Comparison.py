@@ -11,6 +11,7 @@ from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import tkinter as tk
 from tkinter import filedialog
+from tensorflow.keras import regularizers
 
 def select_file():
     root = tk.Tk()
@@ -117,15 +118,16 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
             input_1_images, input_1_paths, input_1_summary = inputs['input_1']
             input_2_images, input_2_paths, input_2_summary = inputs['input_2']
 
-            if MODE == 2:
-                input_1_images = tf.zeros([batch_size, 299, 299, 3])
-                input_2_images = tf.zeros([batch_size, 299, 299, 3])
-                print('training image 1 and image 2 is zeroed out in mode{}'.format(MODE))
             
             # Train the siamese model
             with tf.GradientTape() as tape:
                 labels = [[i] for i in labels]
-                outputs = siamese_model([input_1_images, input_2_images, input_1_summary, input_2_summary])
+                if MODE == 0:
+                    outputs = siamese_model([input_1_images, input_2_images, input_1_summary, input_2_summary])
+                if MODE == 1:
+                    outputs = siamese_model([input_1_images, input_2_images])
+                if MODE == 2:
+                     outputs = siamese_model([input_1_summary, input_2_summary])
                 loss = loss_fn(labels, outputs)
                 # Calculate accuracy
                 predicted_labels = [1 if output >= 0.5 else 0 for output in outputs]
@@ -145,13 +147,13 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
             val_inputs, val_labels = next(val_data_gen)
             input_1_images, input_1_paths, input_1_summary = val_inputs['input_1']
             input_2_images, input_2_paths, input_2_summary = val_inputs['input_2']
-
-            if MODE == 2:
-                input_1_images = tf.zeros([batch_size, 299, 299, 3])
-                input_2_images = tf.zeros([batch_size, 299, 299, 3])
-            
             val_labels = [[i] for i in val_labels]
-            outputs = siamese_model([input_1_images, input_2_images, input_1_summary, input_2_summary])
+            if MODE == 0:
+                outputs = siamese_model([input_1_images, input_2_images, input_1_summary, input_2_summary])
+            if MODE == 1:
+                outputs = siamese_model([input_1_images, input_2_images])
+            if MODE == 2:
+                    outputs = siamese_model([input_1_summary, input_2_summary])
             val_loss = loss_fn(val_labels, outputs)
             # Calculate accuracy
             predicted_labels = [1 if output >= 0.5 else 0 for output in outputs]
@@ -182,27 +184,55 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
     return history, siamese_model
 
 def create_siamese_model(input_shape):
-    input_1 = tf.keras.Input(shape=input_shape)
-    input_2 = tf.keras.Input(shape=input_shape)
+    
+    if MODE == 0:
+        input_1 = tf.keras.Input(shape=input_shape)
+        input_2 = tf.keras.Input(shape=input_shape)    
+        # Load a pre-trained image classification network as the shared subnetwork
+        base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
+        base_network.trainable = False  # Freeze the pre-trained weights
+        output_1 = base_network(input_1)
+        output_2 = base_network(input_2)
+        input_num1 = tf.keras.Input(shape=(7))  # Shape can be adjusted based on your data
+        input_num2 = tf.keras.Input(shape=(7))  # Shape can be adjusted based on your data
+        # Concatenate the outputs and YOLO detections
+        embedding = tf.concat([output_1, output_2, input_num1, input_num2], axis=1)
+        # Run this embedding into the MLP
+        output_dense = layers.Dense(512, activation='relu')(embedding)
+        output_dense = layers.Dense(256, activation='relu')(output_dense)
+        outputs = layers.Dense(1, activation='sigmoid')(output_dense)
+        siamese_model = tf.keras.Model(inputs=[input_1, input_2, input_num1, input_num2], outputs=outputs)
 
-  
-    input_num1 = tf.keras.Input(shape=(7))  # Shape can be adjusted based on your data
-    input_num2 = tf.keras.Input(shape=(7))  # Shape can be adjusted based on your data
+    if  MODE == 1:
+        input_1 = tf.keras.Input(shape=input_shape)
+        input_2 = tf.keras.Input(shape=input_shape)    
+        # Load a pre-trained image classification network as the shared subnetwork
+        base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
+        base_network.trainable = False  # Freeze the pre-trained weights
+        output_1 = base_network(input_1)
+        output_2 = base_network(input_2)
+        # Concatenate the outputs
+        embedding = tf.concat([output_1, output_2], axis=1)
+        # Run this embedding into the MLP
+        output_dense = layers.Dense(512, activation='relu')(embedding)
+        output_dense = layers.Dense(256, activation='relu')(output_dense)
+        outputs = layers.Dense(1, activation='sigmoid')(output_dense)
+        siamese_model = tf.keras.Model(inputs=[input_1, input_2], outputs=outputs)
 
-    # Load a pre-trained image classification network as the shared subnetwork
-    base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
-    base_network.trainable = False  # Freeze the pre-trained weights
-    output_1 = base_network(input_1)
-    output_2 = base_network(input_2)
 
-    # Concatenate the outputs and YOLO detections
-    embedding = tf.concat([output_1, output_2, input_num1, input_num2], axis=1)
+    if MODE == 2:
+        input_num1 = tf.keras.Input(shape=(7))
+        input_num2 = tf.keras.Input(shape=(7))
+        embedding = tf.concat([input_num1, input_num2], axis=1)
+        output_dense = layers.Dense(200, activation='relu', kernel_regularizer=regularizers.l2(0.01))(embedding)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.6)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        output_dense = layers.Dense(200, activation='relu', kernel_regularizer=regularizers.l2(0.01))(embedding)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.6)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        output_dense = layers.Dense(50, activation='relu', kernel_regularizer=regularizers.l2(0.01))(output_dense)  # Adding L2 regularization
+        output_dense = layers.Dropout(0.5)(output_dense)  # Adding Dropout layer with a dropout rate of 0.5
+        outputs = layers.Dense(1, activation='sigmoid')(output_dense)
+        siamese_model = tf.keras.Model(inputs=[input_num1, input_num2], outputs=outputs)
 
-    # Run this embedding into the MLP
-    output_dense = layers.Dense(512, activation='relu')(embedding)
-    output_dense = layers.Dense(256, activation='relu')(output_dense)
-    outputs = layers.Dense(1, activation='sigmoid')(output_dense)
-    siamese_model = tf.keras.Model(inputs=[input_1, input_2, input_num1, input_num2], outputs=outputs)
     return siamese_model
 
 def visualize_activations(model, layer_name, input_image_1, input_image_2):
