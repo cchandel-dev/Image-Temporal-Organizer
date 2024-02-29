@@ -131,7 +131,8 @@ siamese_env/
 annotator_env/
 
 #BIG FOLDERS
-Surgery Images - Temporal Ordering/trained models/
+Surgery Images - Temporal Ordering/Trained Models/
+Surgery Images - Temporal Ordering/Images/
 Private Image Annotator/data/
 
 # Spyder project settings
