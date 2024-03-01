@@ -185,7 +185,7 @@ def custom_fit(siamese_model, history, yolo_model, num_epochs=10, steps_per_epoc
 
 def create_siamese_model(input_shape):
     
-    if MODE == 0:
+    if MODE == 0 or not (MODE == 1 and MODE == 2):
         input_1 = tf.keras.Input(shape=input_shape)
         input_2 = tf.keras.Input(shape=input_shape)    
         # Load a pre-trained image classification network as the shared subnetwork
@@ -366,39 +366,45 @@ def visualize_saliency_map(siamese_model, input_image_1, input_image_2, layer_na
     overlaid_image_2 = (0.3 * image_2) + (0.7 * np.expand_dims(saliency_map_2, axis=-1))
 
     # Plot the original images, saliency map, and overlaid images with increased weights
-    plt.figure(figsize=(12, 4))
+    plt.figure(figsize=(20, 8))
 
     plt.subplot(1, 6, 1)
     plt.imshow(image_1)
     plt.title(f'Input Image {os.path.basename(input_image_1)}')
+    plt.axis('off')  # Turn off axes
 
     plt.subplot(1, 6, 2)
     plt.imshow(image_2)
     plt.title(f'Input Image {os.path.basename(input_image_2)}')
+    plt.axis('off')  # Turn off axes
 
     plt.subplot(1, 6, 3)
     plt.imshow(saliency_map_1, cmap='plasma')  # Experiment with different colormaps
     plt.title('Saliency Map Im. 1')
+    plt.axis('off')  # Turn off axes
 
     plt.subplot(1, 6, 4)
     plt.imshow(saliency_map_2, cmap='plasma')  # Experiment with different colormaps
     plt.title('Saliency Map Im. 2')
+    plt.axis('off')  # Turn off axes
 
     plt.subplot(1, 6, 5)
     plt.imshow(overlaid_image_1)
-    plt.title(f'Overlaid {os.path.basename(input_image_1)} with Saliency Map')
+    plt.title(f'{os.path.basename(input_image_1)} w/ SM')
+    plt.axis('off')  # Turn off axes
 
     plt.subplot(1, 6, 6)
     plt.imshow(overlaid_image_2)
-    plt.title(f'Overlaid {os.path.basename(input_image_2)} with Saliency Map')
+    plt.title(f'{os.path.basename(input_image_2)} w/ SM')
+    plt.axis('off')  # Turn off axes
 
-    plt.savefig('saliency_maps/' + file_name)
+    plt.savefig('Training Graphs\\version 3\\saliency\\Mode 1\\'  + file_name)
     plt.close()
     plt.show()
     
-def looped_visualization(siamese_model, filenames):
+def looped_saliency(siamese_model, filenames):
     # Choose a layer to visualize (you can find layer names using siamese_model.summary())
-    layers_to_visualize = ['dense', 'dense_1', 'dense_2']
+    layers_to_visualize = ['dense_1', 'dense_2', 'dense_3']
     root_path = './images'
     for i in range(len(filenames)):
         for j in range(len(filenames)):
@@ -507,7 +513,7 @@ if __name__ == '__main__':
 
     if MODE == 3:
         print('We have sucessfuly entered mode 3.')
-        
+      
         # Load your siamese model
         siamese_model = create_siamese_model((299, 299, 3))
         siamese_model.load_weights('temporal_ordering_model_trained_MODE0.h5')  # Change the path accordingly
@@ -533,7 +539,7 @@ if __name__ == '__main__':
 
         # Visualize activations for a pair of sample images C:\\Users\\Himani\Laproscopic-Surgery-Work\
         filenames = ['02142010_192913/001.jpg', '02142010_192913/020.jpg', '02142010_204825/007.jpg', '02142010_204825/020.jpg', '09092011_130836/013.jpg']
-        looped_visualization(siamese_model, filenames)
+        looped_saliency(siamese_model, filenames)
     
     if MODE == 5:
         plt.tight_layout()
@@ -552,7 +558,8 @@ if __name__ == '__main__':
         plt.show()
 
     if MODE == 6:
-        loaded_model = tf.keras.models.load_model(select_file())
+        x = int(input('enter the model number'))
+        loaded_model = tf.keras.models.load_model('temporal_ordering_model_trained_MODE{}.h5'.format(x))
         # Assuming you have a function to preprocess and load your test data in batches
         batch_size = 32
         test_data_generator = data_generator(test_image_paths_1, test_image_paths_2, test_labels, batch_size)
@@ -567,8 +574,15 @@ if __name__ == '__main__':
             input_1_images, input_1_paths, input_1_summary = inputs['input_1']
             input_2_images, input_2_paths, input_2_summary = inputs['input_2']
 
-            # Iterate through batches and make predictions
-            predictions_batch = loaded_model.predict([input_1_images, input_2_images, input_1_summary, input_2_summary])
+            # Iterate through batches and make prediction
+            model_input = None
+            if x == 0:
+                model_input = [input_1_images, input_2_images, input_1_summary, input_2_summary]
+            if x == 1:
+                model_input = [input_1_images, input_2_images]
+            if x == 2:
+                model_input = [input_1_summary, input_2_summary]
+            predictions_batch = loaded_model.predict(model_input)
             y_pred_accumulated.extend(predictions_batch)
 
         y_pred_binary = np.array(y_pred_accumulated) > 0.5
