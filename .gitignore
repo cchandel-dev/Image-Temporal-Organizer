@@ -133,6 +133,7 @@ annotator_env/
 #BIG FOLDERS
 Surgery Images - Temporal Ordering/Trained Models/
 Surgery Images - Temporal Ordering/Images/
+Surgery Images - Temporal Ordering/CholecT50/
 Private Image Annotator/data/
 
 # Spyder project settings

@@ -189,7 +189,7 @@ def create_siamese_model(input_shape):
         input_1 = tf.keras.Input(shape=input_shape)
         input_2 = tf.keras.Input(shape=input_shape)    
         # Load a pre-trained image classification network as the shared subnetwork
-        base_network = applications.ResNet152(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
+        base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
         base_network.trainable = False  # Freeze the pre-trained weights
         output_1 = base_network(input_1)
         output_2 = base_network(input_2)
@@ -211,7 +211,7 @@ def create_siamese_model(input_shape):
         input_1 = tf.keras.Input(shape=input_shape)
         input_2 = tf.keras.Input(shape=input_shape)    
         # Load a pre-trained image classification network as the shared subnetwork
-        base_network = applications.ResNet152(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
+        base_network = applications.InceptionV3(weights='imagenet', include_top=False, input_shape=input_shape, pooling='max')
         base_network.trainable = False  # Freeze the pre-trained weights
         output_1 = base_network(input_1)
         output_2 = base_network(input_2)
@@ -421,7 +421,7 @@ if __name__ == '__main__':
     print('MODE:', MODE)
 
     # Read the CSV file
-    csv_file_path = './data.json'
+    csv_file_path = './data_cholecT50.json'
     data = pd.read_json(csv_file_path)
 
     test = data['test']
